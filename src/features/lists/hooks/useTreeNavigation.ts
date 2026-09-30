@@ -189,7 +189,19 @@ export function useTreeNavigation({ tree, selectedId, onSelect }: UseTreeNavigat
           event.preventDefault()
           moveFocusTo(visible[visible.length - 1]?.node.id ?? null)
           break
+        // `Enter` y `Space` seleccionan igual: el patrón ARIA APG Tree View
+        // pide las dos teclas (hallazgo #19, tarea 4.11). `Space` hay que
+        // escribirlo a mano porque el `treeitem` es un `<li>` y no un
+        // `<button>`: no existe el click nativo que `Space` dispararía sobre un
+        // botón. Los dos botones que viven dentro del `<li>` (el chevron y el
+        // disparador del menú) tienen `tabIndex={-1}`, así que nunca tienen el
+        // foco cuando esto corre y no hay competencia por la tecla.
+        //
+        // Para `Space`, el `preventDefault` es doblemente necesario: sin él
+        // además scrollea la página, que es justo lo que arruina la navegación
+        // por teclado en un árbol largo.
         case 'Enter':
+        case ' ':
           event.preventDefault()
           selectNode(current.node.id)
           break
