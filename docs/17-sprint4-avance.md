@@ -251,11 +251,27 @@ responde" al segundo click, es por acá.
 - `npm run typecheck`, `npm run lint` limpios y **271/271 tests** en 50
   archivos (268 previos + 3 nuevos).
 
-> **Nota sobre correr los tests en esta máquina.** Hay un `.env.local` con
-> `VITE_API_MODE=real` desde el 2026-09-24 (preparado para probar contra el
-> Odoo real). Vitest lo carga, los feature flags de `ratings` se apagan
-> (ADR-004) y **tres tests ajenos a estas tareas quedan en rojo**
-> (`LoginPage`, `EntryNotesDialog`, `ListEntryRow`). Con
-> `VITE_API_MODE=mock npm run test` son 271/271. La CI no lo sufre porque allá
-> ese archivo no existe. Candidato a fijar el modo en la config de Vitest para
-> que la suite no dependa del `.env` de cada máquina.
+### Arreglo de paso: la suite ya no depende del `.env` de la máquina
+
+Al verificar estas dos tareas aparecieron **tres tests en rojo que no tenían
+nada que ver con ellas** (`LoginPage`, `EntryNotesDialog`, `ListEntryRow`). La
+causa era un `.env.local` con `VITE_API_MODE=real`, dejado el 2026-09-24 para
+probar contra el Odoo local: Vitest carga los `.env`, así que
+`features.ratings`/`watchDates` (ADR-004, activos solo en modo mock) se apagaban
+y esos tests dejaban de encontrar el puntaje y el botón de Twitch. La CI nunca
+lo sufrió porque allá ese archivo no existe — o sea que era una trampa
+exclusiva de la máquina de desarrollo, del tipo que hace dudar de un cambio
+propio que está bien.
+
+Se cerró fijando `env: { VITE_API_MODE: 'mock' }` en el bloque `test` de
+`vite.config.ts`. Es coherente con lo que la suite ya asumía en todo lo demás:
+corre contra los handlers de MSW (`server.listen` en `setup.ts`), nunca contra
+un backend real; faltaba decirlo explícitamente en vez de heredarlo del entorno.
+
+Verificado empíricamente, no asumido: con el `.env.local` todavía en `real`,
+`npm run test` sin ningún prefijo da **271/271**. Y un matiz que quedó anotado
+en el propio comentario porque es el que haría perder tiempo: la config pisa
+también la variable pasada a mano, así que `VITE_API_MODE=real npx vitest run`
+no cambia nada. Es deliberado, pero hay que saberlo.
+
+Encaja bajo la tarea 4.6 (Tests) del plan; no es una tarea nueva.
