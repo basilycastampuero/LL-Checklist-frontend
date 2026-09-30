@@ -175,3 +175,87 @@ confirmado en esos términos; se deja pendiente, no verificado.
   fecha fijada): agenda mínima los tres escenarios adversariales de arriba,
   más la confirmación de la invalidación de cookie post-logout y la
   pregunta abierta de la sincronización.
+
+## Actualización (2026-09-30) — Tareas 4.11 y 4.12: los dos hallazgos abiertos de la revisión post-3b
+
+Las dos deudas de severidad baja que la revisión del árbol de listas dejó
+abiertas (#19 y #20 de [13-sprint3a-avance.md](./13-sprint3a-avance.md)) quedan
+cerradas. Eran las únicas que seguían vivas de esa revisión.
+
+### 4.11 — `Space` selecciona en el árbol
+
+`useTreeNavigation.ts` manejaba `Enter` pero no `Space`, y el patrón ARIA APG
+Tree View pide las dos. La razón por la que hacía falta escribirlo y no salía
+gratis: el `treeitem` es un `<li>`, no un `<button>`, así que no existe el click
+nativo que `Space` dispararía. Se resolvió agregando `case ' '` al lado de
+`case 'Enter'` — ambos caen en el mismo cuerpo.
+
+Dos detalles que valen más que el cambio en sí:
+
+- **El `preventDefault` no es decorativo acá.** Sin él `Space` scrollea la
+  página, que es exactamente lo que vuelve inusable la navegación por teclado en
+  un árbol largo. Tiene test propio, que comprueba que el keydown queda con
+  `defaultPrevented`.
+- **No hay competencia por la tecla.** Los dos botones que viven dentro del
+  `<li>` (el chevron de expandir y el disparador del menú contextual) tienen
+  `tabIndex={-1}`, así que nunca reciben el foco por teclado; y cuando el menú
+  Radix está abierto, el foco se va a un portal fuera del `<li>`, así que su
+  keydown no burbujea hasta acá. Se verificó leyendo
+  `ChecklistTreeItem.tsx` antes de escribir el arreglo, no se asumió.
+
+El comentario explicativo terminó **arriba** del par de `case` y no entre
+ellos: entre los dos, ESLint lo cuenta como un case no vacío y dispara
+`no-fallthrough`.
+
+### 4.12 — `useUpdateChecklist` con `scope` por nodo
+
+Mismo patrón que `useUpdateEntryProgress` desde el Sprint 3b:
+un `scope` con id `checklist-<id>`, que serializa las mutaciones del mismo nodo.
+
+**Cambio de firma, y por qué era inevitable.** `scope` es una opción
+**estática** de `useMutation`: TanStack la lee al crear el observer, antes de que
+exista ninguna variable de mutación. Como el `id` llegaba en las variables
+(`mutate({ id, patch })`), no había forma de derivar el scope de él. El hook
+pasó a recibirlo como argumento —`useUpdateChecklist(node.id)`— y las variables
+quedaron en solo el patch. Funciona porque `ChecklistNodeMenu` se monta una vez
+por nodo, así que cada instancia queda con su propio scope, que es justo el
+grano necesario: nodos distintos siguen mutando en paralelo.
+
+**El repro fácil no es el renombre, es el toggle de publicar.** Renombrar pasa
+por un diálogo, así que encadenar dos es incómodo; publicar/despublicar usa
+`mutate` directo sin diálogo, así que dos clicks seguidos ya ponen dos `PATCH`
+en vuelo. Vale anotarlo para quien busque el bug a mano.
+
+**Observación adicional, no arreglada** (no está en el alcance de 4.12 y no es
+el hallazgo #20): `handleTogglePublish` calcula `!node.isPublished` leyendo la
+prop `node`. Con dos clicks rápidos, ambos pueden leer el mismo valor y mandar
+el mismo destino, en vez de alternar. A diferencia del stepper de episodios
+—que manda el valor absoluto y por eso es idempotente en cualquier orden— acá
+el valor absoluto se **deriva** de un estado que puede estar viejo. El `scope`
+lo mitiga (la segunda mutación arranca después de que la primera liquidó y de
+su invalidación), pero no lo elimina. Si algún día se ve un toggle que "no
+responde" al segundo click, es por acá.
+
+### Verificación
+
+- Los dos arreglos tienen test, y de los tres tests nuevos se comprobó que
+  **fallan sin el arreglo** antes de darlos por buenos: los de `Space` dejan de
+  pasar al quitar el `case ' '`, y el de `scope` falla con
+  `expected 2 to be 1` en el contador de concurrencia. Es la precaución que el
+  proyecto ya pagó por no tomar (ocho falsos verdes entre los Sprints 3a y 3b,
+  ADR-022).
+- El test de 4.12 mide **concurrencia máxima de requests**, no el estado final
+  del cache: el estado final depende del refetch de `onSettled` contra el mock,
+  que no es determinista en este escenario. La propiedad que el arreglo
+  garantiza —que las dos no se solapen— sí lo es.
+- `npm run typecheck`, `npm run lint` limpios y **271/271 tests** en 50
+  archivos (268 previos + 3 nuevos).
+
+> **Nota sobre correr los tests en esta máquina.** Hay un `.env.local` con
+> `VITE_API_MODE=real` desde el 2026-09-24 (preparado para probar contra el
+> Odoo real). Vitest lo carga, los feature flags de `ratings` se apagan
+> (ADR-004) y **tres tests ajenos a estas tareas quedan en rojo**
+> (`LoginPage`, `EntryNotesDialog`, `ListEntryRow`). Con
+> `VITE_API_MODE=mock npm run test` son 271/271. La CI no lo sufre porque allá
+> ese archivo no existe. Candidato a fijar el modo en la config de Vitest para
+> que la suite no dependa del `.env` de cada máquina.

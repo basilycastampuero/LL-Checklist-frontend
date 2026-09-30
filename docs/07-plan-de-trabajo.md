@@ -252,7 +252,10 @@ path.
 > listas y sesión/logout funcionando contra el backend real. Quedan sin probar
 > tres escenarios adversariales y una pregunta abierta sobre si la
 > sincronización fue elegida o automática; detalle en
-> [17-sprint4-avance.md](./17-sprint4-avance.md). Resto del sprint sin empezar.
+> [17-sprint4-avance.md](./17-sprint4-avance.md). ✅ **4.11 y 4.12 completas**
+> (2026-09-30): los dos hallazgos de severidad baja que la revisión post-3b
+> dejó abiertos (#19 y #20) quedan cerrados, con lo que esa revisión no deja
+> deuda. Resto del sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
 |---|---|---|---|

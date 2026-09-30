@@ -918,17 +918,21 @@ documento, sin relación con esta secuencia).
   se revelaba. Pasó a ser `autoExpandedFor` (el último `selectedId`
   atendido).
 
-**Abiertos (2):**
+**Abiertos (2) — los dos cerrados el 2026-09-30, ver abajo:**
 
 - **#19 (bajo) — `Space` no selecciona en el árbol.** `useTreeNavigation.ts`
   maneja `Enter` pero no `Space`, y el patrón ARIA APG Tree View pide las
   dos. Como el `treeitem` es un `<li>` y no un botón, `Space` tampoco dispara
-  el click nativo.
+  el click nativo. **[✅ CERRADO 2026-09-30, tarea 4.11]** `case ' '` junto a
+  `case 'Enter'`, con `preventDefault` que además evita el scroll de página.
 - **#20 (bajo) — `useUpdateChecklist` no tiene `scope`.** Es el arreglo
   hermano que sí recibió `useUpdateEntryProgress` en el Sprint 3b: dos
   renombres del mismo nodo en vuelo pueden hacer que el rollback del primero
   pise el resultado del segundo. Se auto-corrige en el refetch de
   `onSettled`, así que es un parpadeo y no corrupción.
+  **[✅ CERRADO 2026-09-30, tarea 4.12]** `scope: { id: 'checklist-<id>' }`;
+  el `id` pasó a ser argumento del hook porque `scope` es una opción estática
+  de `useMutation`.
 
 **Revisado y sano** (importa tanto como los hallazgos, porque es lo que
 permite cerrar la zona con fundamento): `countDescendants` es correcta y su
