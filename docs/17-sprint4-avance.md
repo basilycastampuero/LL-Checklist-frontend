@@ -75,7 +75,7 @@ el código y acá, sin trade-off arquitectónico detrás.
 
 ## Verificación
 
-Corrido en esta sesión desde `anitrack-frontend/` (rama `feat/logout-y-settings`):
+Corrido en esta sesión desde `ll-checklist-frontend/` (rama `feat/logout-y-settings`):
 
 ```bash
 npm run typecheck   # limpio

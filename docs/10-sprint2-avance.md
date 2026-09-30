@@ -80,7 +80,7 @@ falta para demostrar el sprint sigue siendo la tarea 2.3 (página de catálogo).
 
 ## Verificación
 
-Corrido en la raíz de `anitrack-frontend/`:
+Corrido en la raíz de `ll-checklist-frontend/`:
 
 ```bash
 npm run typecheck   # limpio (tsc --noEmit, strict)
@@ -208,7 +208,7 @@ determinar la causa completa en esta sesión.
 
 ### Verificación
 
-Corrido desde `anitrack-frontend/`:
+Corrido desde `ll-checklist-frontend/`:
 
 ```bash
 npm run typecheck   # limpio
@@ -308,7 +308,7 @@ MSW.
 
 ### Verificación
 
-Corrido desde `anitrack-frontend/`:
+Corrido desde `ll-checklist-frontend/`:
 
 ```bash
 npm run typecheck   # limpio

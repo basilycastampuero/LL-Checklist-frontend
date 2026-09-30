@@ -1,10 +1,10 @@
-# AniTrack — Documentación exclusiva del backend
+# LL Checklist — Documentación exclusiva del backend
 
 Análisis del backend Odoo real (`ll-odoo`, de Chano / chanochambure) hecho por el
 equipo de frontend, y las preguntas pendientes para él. **No se escribe nada
 dentro de `ll-odoo/`** (repo Git propio de Chano, en `../../ll-odoo/` desde
 aquí): esta carpeta vive aparte para no tocarlo. Vive dentro del repo de
-`anitrack-frontend` como carpeta hermana de [`../docs/`](../docs/README.md)
+`ll-checklist-frontend` como carpeta hermana de [`../docs/`](../docs/README.md)
 porque es documentación de análisis, no decisiones propias del frontend.
 
 | Documento | Qué contiene |

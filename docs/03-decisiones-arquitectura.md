@@ -109,7 +109,7 @@ muestra controles muertos; hay un camino claro para activarlo.
 headers por defecto. El OAuth de Twitch ya funciona server-side en Odoo (flujo
 redirect). Odoo está self-hosted en Railway (contenedor + Postgres); el frontend
 estático irá en Vercel/Netlify. **Dato que define la topología (2026-07-24):** el
-dominio es pagado exclusivamente para este proyecto y AniTrack es un solo
+dominio es pagado exclusivamente para este proyecto y LL Checklist es un solo
 producto, así que backend y frontend cuelgan del **mismo dominio registrado** →
 la cookie de sesión es *first-party* y evitamos por completo el escenario frágil
 de dos dominios sin relación (`*.vercel.app` + `*.railway.app`), que obligaría a
@@ -305,7 +305,7 @@ implementar la tarea 2.4 (detalle de franquicia).
    por complejidad no justificada para el alcance de la tarea 2.4; queda como
    posible mejora futura si hay señal real de que hace falta.
 3. **[Elegida]** Default fijo **"Videos"** siempre que ambos tipos tengan
-   contenido. AniTrack es un dominio video-primero (anime/series es el caso
+   contenido. LL Checklist es un dominio video-primero (anime/series es el caso
    de uso principal del brief; juegos es soporte secundario del modelo de
    franquicia real del backend).
 
@@ -1018,3 +1018,66 @@ real no es "una o dos implementaciones" sino "la segunda es fiel o mentirosa".
 El drift entre ambas se mitiga con la misma herramienta que en el 3a, el
 checkpoint de contrato al cierre del sprint, que ahora incluye explícitamente
 la paridad de estos invariantes.
+
+## ADR-023 — El renombre a "LL Checklist" solo alcanza al nombre; los identificadores conservan la grafía vieja
+
+**Contexto.** El proyecto se llamaba **AniTrack**, un nombre elegido en el
+brief inicial. El 2026-09-30 el dueño del proyecto lo cambió a **LL Checklist**,
+que es el nombre que le dio Chano y el que ya usaban el módulo de Odoo
+(`ll_checklist`), su grupo de seguridad (`LL Checklist / Administrator`) y su
+menú. O sea: el renombre no inventa un nombre, adopta el que el backend venía
+usando desde antes.
+
+El problema es que "anitrack" no aparecía solo en prosa. De las 191 líneas de
+`.md` que lo mencionaban, la enorme mayoría eran **identificadores que existen
+de verdad**: la rama `anitrack/rest-catalog-api` de `ll-odoo`, el directorio y
+el repo de GitHub `anitrack-frontend`, la base de datos `anitrack` del Odoo
+local, el valor del header `X-Requested-With: anitrack` (ADR-016), la clave de
+`localStorage` `anitrack-theme`, el dominio de los emails de prueba
+(`usertest@anitrack.dev`) y los nombres de los agentes `anitrack-*`. Un
+reemplazo global los habría cambiado a todos.
+
+**Alternativas consideradas.**
+
+1. Renombrar todo, código e infraestructura incluidos. Descartada por costo y
+   riesgo desproporcionados frente al beneficio: obliga a recrear la base de
+   Odoo (y perder los datos de prueba que sostienen la verificación de los
+   Sprints 3a/3b), a cambiar el header en los dos lados a la vez —en
+   `lib/http.ts` y en `REQUIRED_CLIENT_HEADER_VALUE` de
+   `ll_webpage/controllers/api_common.py`, porque el backend compara el valor
+   exacto y un cambio de un solo lado devuelve 403 en toda la escritura—, y a
+   descartar la preferencia de tema de cualquiera que ya haya elegido una.
+2. Reemplazo textual global en los `.md`. Descartada, y es la alternativa
+   peligrosa: dejaría la documentación **prolija y falsa a la vez**. Los
+   comandos copiados de los docs dejarían de funcionar, la rama citada no
+   existiría, el header documentado no coincidiría con el código y los usuarios
+   de prueba pasarían a ser inventados. Para documentos cuyo propósito es ser
+   fuente de verdad, ese es el peor resultado posible.
+3. **[Elegida]** Renombrar el **nombre del producto** donde es nombre (prosa,
+   títulos, el directorio local del repo y el archivo
+   `ll_checklist_ai_context.md`), y dejar intacto todo identificador técnico,
+   con un comentario en cada sitio de código que explique por qué no coincide.
+
+**Decisión.** Opción 3. Concretamente: `AniTrack` → `LL Checklist` en prosa;
+el directorio `anitrack-frontend/` → `ll-checklist-frontend/` (con las cuatro
+rutas de `docker-compose.yml` actualizadas); `docs/anitrack_ai_context.md` →
+`docs/ll_checklist_ai_context.md`. Conservan la grafía vieja, con comentario
+explicativo donde viven: el header (`src/lib/http.ts`), la clave de
+`localStorage` (`src/store/themeStore.ts`), el nombre de la base
+(`docker-compose.yml`), el `name` de `package.json`, la rama de `ll-odoo`, los
+emails de prueba y los nombres de los agentes `anitrack-*` —que son cómo se los
+invoca, así que renombrarlos los rompería—.
+
+El **repo de GitHub sigue llamándose `basilycastampuero/anitrack-frontend`**:
+renombrarlo es una acción sobre GitHub, no sobre estos archivos, y queda a
+criterio del dueño del proyecto. Por eso las referencias al repo remoto y a la
+URL del PR #1 conservan el nombre viejo a propósito, y no son un olvido.
+
+**Consecuencias.** Positiva: el nombre de cara al usuario queda alineado con el
+del backend, y ningún comando ni ninguna ruta de los docs deja de funcionar.
+Negativa: durante un tiempo convive el nombre nuevo en la prosa con el viejo en
+los identificadores, lo que a primera vista parece un renombre a medio hacer.
+Este ADR es precisamente la respuesta a esa pregunta cuando alguien la haga.
+Segunda consecuencia, menor: "LL Checklist" ahora nombra dos cosas en los docs
+—el producto y el grupo de seguridad de Odoo `LL Checklist / Administrator`—;
+se distinguen porque el grupo siempre aparece calificado con `/ Administrator`.

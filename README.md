@@ -1,6 +1,6 @@
-# AniTrack — Frontend
+# LL Checklist — Frontend
 
-Frontend en React para AniTrack: un catálogo de juegos/anime con checklists
+Frontend en React para LL Checklist: un catálogo de juegos/anime con checklists
 personales y seguimiento de progreso de episodios. Backend en Odoo (proyecto de
 Chano / `chanochambure`, repo Git propio en `../ll-odoo/`, intocable); este
 repositorio es el proyecto frontend completo, incluida su documentación.
@@ -65,7 +65,7 @@ docker compose --profile test up frontend-test
 docker compose run --rm frontend npm run lint
 ```
 
-El código fuente se monta como bind mount (`./anitrack-frontend:/app`), así que
+El código fuente se monta como bind mount (`./ll-checklist-frontend:/app`), así que
 los cambios se reflejan al instante sin reconstruir la imagen; `node_modules`
 vive en un volumen nombrado aparte para no mezclarlo con el del host.
 
@@ -155,8 +155,8 @@ nada.
 ### Build de producción (nginx)
 
 ```bash
-docker build --target production -t anitrack-frontend .
-docker run -p 8080:80 anitrack-frontend
+docker build --target production -t ll-checklist-frontend .
+docker run -p 8080:80 ll-checklist-frontend
 ```
 
 Sirve el bundle estático con `nginx` y fallback de rutas para React Router

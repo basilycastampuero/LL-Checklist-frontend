@@ -58,6 +58,12 @@ export function createHttpClient(): AxiosInstance {
       // ADR-016: defensa CSRF por header custom. Sin esto, el backend real
       // responde 403 FORBIDDEN a cualquier POST/PATCH/DELETE (GET no lo exige,
       // pero se manda siempre para no tener que distinguir por método acá).
+      //
+      // El valor sigue siendo 'anitrack' y no 'll-checklist' aunque el
+      // proyecto se renombró (ADR-023): el backend compara contra esta cadena
+      // exacta en `ll_webpage`, así que cambiarla acá sin cambiarla allá
+      // rompería toda la escritura con un 403. Es un identificador de
+      // protocolo, no un nombre de cara al usuario.
       'X-Requested-With': 'anitrack',
     },
   })

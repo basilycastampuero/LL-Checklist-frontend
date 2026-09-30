@@ -1,13 +1,13 @@
 # 01 — Visión y Alcance
 
-## Qué es AniTrack (según el brief)
+## Qué es LL Checklist (según el brief)
 
 Plataforma de tracking de contenido multimedia (anime, manga, series, películas,
 juegos) al estilo MyAnimeList/AniList. Freelance pagado + pieza de portafolio.
 Frontend en React; backend en Odoo desarrollado por otro dev ("LexRis Logic").
 Plazo: 1–2 meses desde inicio oficial.
 
-## Qué es AniTrack (según el código real del backend)
+## Qué es LL Checklist (según el código real del backend)
 
 Tras leer todo el repositorio `ll-odoo` (rama activa: `checklist_base`), el
 producto que el backend implementa hoy es más preciso llamarlo **"checklist

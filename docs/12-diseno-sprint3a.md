@@ -351,7 +351,7 @@ backoffice (regresión de ADR-014, alternativa 2).
 
 ### B2 — Seed de listas en el Odoo local
 
-`anitrack-frontend/scripts/seed-odoo.mjs`.
+`ll-checklist-frontend/scripts/seed-odoo.mjs`.
 
 Crea el usuario portal del seed de MSW y replica sus checklists anidadas y sus
 links, igual que ya hace con el catálogo. Idempotente y con `--reset` como el

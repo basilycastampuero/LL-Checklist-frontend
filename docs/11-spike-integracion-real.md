@@ -96,7 +96,7 @@ El proxy de Vite ya estaba configurado (`/api` → `VITE_ODOO_URL`), así que co
 `VITE_API_MODE=real` el frontend apunta al Odoo local sin cambios de código.
 
 **Pendiente explícito:** no se verificó en un navegador real (Playwright no
-tiene Chromium instalado en esta máquina — ver nota de CLAUDE.md/AniTrack).
+tiene Chromium instalado en esta máquina — ver nota de CLAUDE.md/LL Checklist).
 La validación es de contrato/esquemas, no visual.
 
 ### 4. Corrección sobre `/web/image` (doc 08)
@@ -138,7 +138,7 @@ filtro `published` en el controlador (en vez de abrir ACL) y `type="http"`
 
 ## Verificación
 
-Frontend, desde `anitrack-frontend/`:
+Frontend, desde `ll-checklist-frontend/`:
 
 ```bash
 npm run typecheck   # limpio

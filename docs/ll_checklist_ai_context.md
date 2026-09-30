@@ -1,6 +1,6 @@
-# AniTrack — Contexto del Proyecto para IA
+# LL Checklist — Contexto del Proyecto para IA
 
-> Este documento es para dar contexto a una IA (Claude Code u otra) sobre el proyecto AniTrack.
+> Este documento es para dar contexto a una IA (Claude Code u otra) sobre el proyecto LL Checklist.
 > Leé todo antes de escribir una línea de código o dar cualquier sugerencia técnica.
 
 ---
@@ -15,7 +15,7 @@
 
 ---
 
-## Qué es AniTrack
+## Qué es LL Checklist
 
 Plataforma de tracking de contenido multimedia: anime, manga, series, películas y juegos.
 Referencia directa: MyAnimeList / AniList.

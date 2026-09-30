@@ -167,7 +167,7 @@ test de "la mutación se llamó".
 
 ## Verificación
 
-Corrido desde `anitrack-frontend/` en esta sesión:
+Corrido desde `ll-checklist-frontend/` en esta sesión:
 
 ```bash
 npm run typecheck   # limpio
@@ -942,7 +942,7 @@ coincide con la decisión cerrada.
 
 ### Verificación
 
-Corrido desde `anitrack-frontend/` en esta sesión, rama
+Corrido desde `ll-checklist-frontend/` en esta sesión, rama
 `fix/revision-arbol-listas`:
 
 ```bash
