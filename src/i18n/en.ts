@@ -5,7 +5,13 @@
  */
 export const en = {
   app: {
-    name: 'AniTrack',
+    name: 'LL Checklist',
+    /**
+     * Iniciales del logo. Vivían hardcodeadas en `Header.tsx`, que es
+     * justo lo que ADR-007 no quiere: al renombrar el proyecto la marca se
+     * quedó diciendo "A" y nadie lo notó hasta la revisión visual.
+     */
+    mark: 'LL',
     tagline: 'Find and track your games and anime',
   },
   nav: {

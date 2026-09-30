@@ -1068,10 +1068,30 @@ explicativo donde viven: el header (`src/lib/http.ts`), la clave de
 emails de prueba y los nombres de los agentes `anitrack-*` —que son cómo se los
 invoca, así que renombrarlos los rompería—.
 
-El **repo de GitHub sigue llamándose `basilycastampuero/anitrack-frontend`**:
-renombrarlo es una acción sobre GitHub, no sobre estos archivos, y queda a
-criterio del dueño del proyecto. Por eso las referencias al repo remoto y a la
-URL del PR #1 conservan el nombre viejo a propósito, y no son un olvido.
+**El repo de GitHub también se renombró**, a
+`basilycastampuero/LL-Checklist-frontend`, el mismo 2026-09-30 y por decisión
+del dueño del proyecto. Renombrarlo es una acción sobre GitHub y no sobre estos
+archivos, así que no vino en el mismo commit que el resto: esta sección decía
+que el repo conservaba el nombre viejo y se corrigió en cuanto pasó. GitHub
+redirige el nombre anterior, así que un `remote` desactualizado sigue
+funcionando, pero conviene actualizarlo para no depender del redirect.
+
+Lo que **sí** conserva el nombre viejo a propósito son las referencias
+**históricas**: la URL del PR #1 en la bitácora 13, las menciones de la Fase 0.3
+en la bitácora 10 y en el plan, y el repo vacío `Wo0Kat/anitrack-frontend` de
+la cuenta secundaria. Describen hechos de cuando el repo se llamaba así, y
+reescribirlas volvería falso el registro. No son olvidos.
+
+**El nombre visible en la app también entra en el renombre**, aunque sea
+código: el wordmark del header (`t.app.name`), las iniciales del logo y el
+`<title>`/`description` de `index.html` decían "AniTrack". No son
+identificadores técnicos —nadie los compara contra una cadena ni los usa como
+clave—, son el nombre del producto en el lugar más visible que tiene. Se
+descubrieron en la revisión visual de la tarea 4.4, no en el renombre, que es
+un argumento a favor de que la captura de pantalla esté en el Definition of
+Done y no sea un trámite. De paso, las iniciales del logo estaban
+**hardcodeadas** en `Header.tsx` contra lo que pide ADR-007, que es exactamente
+por qué el renombre no las alcanzó: no estaban donde viven los strings.
 
 **Consecuencias.** Positiva: el nombre de cara al usuario queda alineado con el
 del backend, y ningún comando ni ninguna ruta de los docs deja de funcionar.

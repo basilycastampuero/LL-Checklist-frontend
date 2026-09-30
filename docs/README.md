@@ -14,11 +14,13 @@
 > nombre y a la carpeta (`anitrack-frontend/` → `ll-checklist-frontend/`); los
 > identificadores técnicos **conservan a propósito la grafía vieja** —la rama
 > `anitrack/rest-catalog-api`, la base de datos `anitrack`, el header
-> `X-Requested-With: anitrack`, la clave de `localStorage`, los emails de
-> prueba `@anitrack.dev` y el repo de GitHub `basilycastampuero/anitrack-frontend`—
-> porque cambiarlos rompe cosas que funcionan. El razonamiento completo está en
+> `X-Requested-With: anitrack`, la clave de `localStorage` y los emails de
+> prueba `@anitrack.dev`— porque cambiarlos rompe cosas que funcionan. El
+> repo de GitHub **sí** se renombró, a `basilycastampuero/LL-Checklist-frontend`.
+> El razonamiento completo está en
 > [ADR-023](./03-decisiones-arquitectura.md). Si encontrás "anitrack" en un
-> comando o una ruta de estos docs, está bien así.
+> comando, en una ruta o en una referencia histórica de estos docs, está bien
+> así.
 
 ## En esta carpeta
 

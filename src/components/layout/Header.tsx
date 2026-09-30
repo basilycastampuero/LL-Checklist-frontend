@@ -32,8 +32,8 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
         <Link to={paths.home} className="flex items-center gap-2 font-bold">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            A
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+            {t.app.mark}
           </span>
           <span className="hidden sm:inline">{t.app.name}</span>
         </Link>
