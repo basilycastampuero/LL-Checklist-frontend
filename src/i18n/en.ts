@@ -62,6 +62,20 @@ export const en = {
     franchiseNotFoundBody: "This franchise doesn't exist or was removed.",
     contentNotFoundTitle: 'Content not found',
     contentNotFoundBody: "This content doesn't exist or was removed.",
+    /**
+     * Página de error de ruta (tarea 4.4). Distinta de `errorTitle`/`errorBody`,
+     * que son para un error de datos DENTRO de una página que sigue viva: acá
+     * la página entera no llegó a renderizar.
+     */
+    crashTitle: 'This page ran into a problem',
+    crashBody:
+      "The page couldn't finish loading. Reloading usually fixes it; if it keeps happening, the rest of the app still works.",
+    crashDetails: 'Technical details',
+    reload: 'Reload page',
+  },
+  offline: {
+    title: "You're offline",
+    body: 'You can keep browsing what’s already loaded, but changes you make now may not be saved.',
   },
   card: {
     inYourList: 'In your list',
