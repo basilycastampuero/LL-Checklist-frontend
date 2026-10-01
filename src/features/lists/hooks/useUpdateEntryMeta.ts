@@ -40,6 +40,27 @@ export function useUpdateEntryMeta(checklistId: number, linkId: number) {
     Partial<EntryMetaPatch>,
     MutationContext
   >({
+    /**
+     * El **mismo** id que `useUpdateEntryProgress` (hallazgos F3 y F4 de la
+     * auditoría del 2026-10-01). Dos cosas distintas se arreglan acá:
+     *
+     * F3: sin `scope`, dos ediciones del mismo entry en vuelo se pisaban — el
+     * `onMutate` de la segunda tomaba como snapshot un array que ya incluía el
+     * patch optimista de la primera, así que el `onError` de la primera
+     * borraba de pantalla el resultado de la segunda. Es la misma forma del
+     * hallazgo #20, en el único hook optimista que la tarea 4.12 no tocó.
+     *
+     * F4, y es la razón de compartir el id en vez de usar uno propio: este
+     * hook y `useUpdateEntryProgress` escriben la **misma** `queryKey` y los
+     * dos restauran el **array entero** en su rollback. Con ids distintos
+     * nunca se serializarían entre sí, y entonces el rollback de uno borra el
+     * resultado exitoso del otro: subir un episodio y, dentro de los 400 ms
+     * del debounce, guardar una nota; si después falla el PATCH de progreso,
+     * su rollback se lleva también la nota que el servidor ya había guardado.
+     * Un scope por **link** y no por hook es lo que lo evita.
+     */
+    scope: { id: `entry-${linkId}` },
+
     mutationFn: (patch) => {
       const body: UpdateLinkRequest = {}
       if ('notes' in patch) body.notes = patch.notes ?? null
