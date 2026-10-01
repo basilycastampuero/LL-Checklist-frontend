@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { AxiosError, AxiosHeaders } from 'axios'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { AxiosError, AxiosHeaders, type AxiosInstance } from 'axios'
 import { createHttpClient, normalizeError } from '@/lib/http'
 import { ApiError } from '@/types/api.types'
 import { useSessionStore } from '@/store/sessionStore'
@@ -20,6 +20,48 @@ describe('createHttpClient', () => {
   it('manda X-Requested-With: anitrack (ADR-016, defensa CSRF)', () => {
     const client = createHttpClient()
     expect(client.defaults.headers['X-Requested-With']).toBe('anitrack')
+  })
+})
+
+/** Cliente cuyo adapter devuelve 200 y anota los headers de cada request. */
+function clientCapturingHeaders(): { client: AxiosInstance; seen: (string | undefined)[] } {
+  const client = createHttpClient()
+  const seen: (string | undefined)[] = []
+  client.defaults.adapter = async (config) => {
+    const value = AxiosHeaders.from(config.headers).get('x-mock-error')
+    seen.push(typeof value === 'string' ? value : undefined)
+    return { status: 200, statusText: 'OK', data: {}, headers: {}, config }
+  }
+  return { client, seen }
+}
+
+describe('interceptor de inyección de fallos (4.4)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
+  it('should send x-mock-error when ?mockError= is in the browser URL', async () => {
+    window.history.replaceState(null, '', '/my-lists?mockError=INTERNAL')
+    const { client, seen } = clientCapturingHeaders()
+    await client.get('/whatever')
+    expect(seen).toEqual(['INTERNAL'])
+  })
+
+  it('should not send x-mock-error when the param is absent', async () => {
+    window.history.replaceState(null, '', '/my-lists?other=1')
+    const { client, seen } = clientCapturingHeaders()
+    await client.get('/whatever')
+    expect(seen).toEqual([undefined])
+  })
+
+  it('should re-read the URL on every request, not once at client creation', async () => {
+    const { client, seen } = clientCapturingHeaders()
+    await client.get('/whatever')
+    window.history.replaceState(null, '', '/?mockError=FORBIDDEN')
+    await client.get('/whatever')
+    window.history.replaceState(null, '', '/')
+    await client.get('/whatever')
+    expect(seen).toEqual([undefined, 'FORBIDDEN', undefined])
   })
 })
 
