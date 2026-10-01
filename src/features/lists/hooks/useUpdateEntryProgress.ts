@@ -23,6 +23,13 @@ interface Burst {
   /** Último valor que el usuario pidió y todavía no salió. */
   pending?: number
   inFlight: boolean
+  /**
+   * El commit en vuelo, si hay uno, resolviendo a `true` si el servidor lo
+   * aceptó. Existe para que el flush del desmontaje pueda **esperarlo** en vez
+   * de salir en paralelo: ese flush va por el service y no por `mutate`, así
+   * que el `scope` no lo serializa y nada más lo ordenaría.
+   */
+  inFlightPromise?: Promise<boolean>
 }
 
 interface MutationContext {
@@ -40,6 +47,14 @@ interface MutationContext {
  * El caso sincronizado usa el martillo a propósito: el contrato expone
  * `isSynced: boolean` pero no los ids de las copias, así que el cliente no
  * puede saber qué otras carpetas quedaron sucias.
+ *
+ * **Excepción, y es deliberada** (hallazgo F10): el flush del desmontaje
+ * invalida `listKeys.all` con `refetchType: 'all'` aunque el entry **no** sea
+ * sincronizado. La carpeta que quedó con el valor optimista ya no está
+ * montada, y marcarla stale sin refetchear hace que al volver se vea un frame
+ * con el número viejo. Cuesta un GET extra y contradice la tabla del doc 15
+ * §3.2, así que queda dicho acá para que la próxima revisión no lo lea como un
+ * bug.
  *
  * Contra la ráfaga del long-press, tres defensas (§4.3):
  *
@@ -65,7 +80,7 @@ export function useUpdateEntryProgress(
   const { linkId } = entry
   const { isSynced } = entry.version
 
-  const { mutate, isPending } = useMutation<
+  const { mutateAsync, isPending } = useMutation<
     ListEntry,
     unknown,
     number,
@@ -104,7 +119,10 @@ export function useUpdateEntryProgress(
       if (trailing != null && burst.current.timer == null) {
         burst.current.pending = undefined
         burst.current.inFlight = true
-        mutate(trailing)
+        burst.current.inFlightPromise = mutateAsync(trailing).then(
+          () => true,
+          () => false,
+        )
         return
       }
 
@@ -146,10 +164,13 @@ export function useUpdateEntryProgress(
         if (value == null) return
         burst.current.pending = undefined
         burst.current.inFlight = true
-        mutate(value)
+        burst.current.inFlightPromise = mutateAsync(value).then(
+          () => true,
+          () => false,
+        )
       }, COMMIT_DELAY_MS)
     },
-    [queryClient, queryKey, linkId, mutate],
+    [queryClient, queryKey, linkId, mutateAsync],
   )
 
   useEffect(
@@ -157,6 +178,7 @@ export function useUpdateEntryProgress(
       const pending = burst.current
       if (pending.timer) clearTimeout(pending.timer)
       const value = pending.pending
+      const enVuelo = pending.inFlightPromise
       burst.current = { inFlight: false }
       if (value == null) return
       // Desmontar con un commit pendiente (cambiar de carpeta justo después de
@@ -164,6 +186,21 @@ export function useUpdateEntryProgress(
       // por el service y no por `mutate` porque el observer ya no existe y sus
       // callbacks no correrían, así que el aviso de fallo se da acá a mano.
       void (async () => {
+        // Esperar al commit que quedó en vuelo antes de mandar el de arrastre.
+        // Sin esto salían los dos en paralelo: este flush no pasa por `mutate`,
+        // así que el `scope: { id: 'entry-<linkId>' }` no lo serializa, y como
+        // los dos PATCH mandan el valor **absoluto**, si el servidor liquidaba
+        // el viejo último el usuario se quedaba con el número anterior al que
+        // había visto subir — y la invalidación de abajo ya había corrido, así
+        // que el refetch lo confirmaba y nada lo volvía a corregir.
+        if (enVuelo) {
+          const aceptado = await enVuelo
+          // Si el commit en vuelo falló, la cadena está abortada: su `onError`
+          // ya revirtió el cache y avisó. Mandar el de arrastre acá volvería a
+          // separar la pantalla de lo que el usuario vio revertirse, que es
+          // exactamente lo que ese `onError` evita.
+          if (!aceptado) return
+        }
         try {
           await listsService.updateLink(linkId, { watchedEpisodes: value })
         } catch {

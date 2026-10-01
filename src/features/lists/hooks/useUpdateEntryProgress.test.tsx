@@ -14,6 +14,7 @@ import { http, HttpResponse, delay } from 'msw'
 import type { ReactNode } from 'react'
 import { server } from '@/mocks/server'
 import { useUpdateEntryProgress } from '@/features/lists/hooks/useUpdateEntryProgress'
+import { useUpdateEntryMeta } from '@/features/lists/hooks/useUpdateEntryMeta'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
 import { useSessionStore } from '@/store/sessionStore'
 import type { ListEntry, VersionEntry } from '@/features/lists/types'
@@ -241,6 +242,131 @@ describe('useUpdateEntryProgress', () => {
     await waitFor(() => expect(seen).toHaveLength(1))
     server.events.removeAllListeners()
   })
+
+  // Hallazgo F4: `useUpdateEntryMeta` y este hook escriben la MISMA queryKey y
+  // los dos restauran el array entero, así que sin un scope compartido por
+  // link el rollback de uno borraba el resultado exitoso del otro.
+  it('comparte el scope con useUpdateEntryMeta: las dos no se solapan', async () => {
+    let enVuelo = 0
+    let maxConcurrente = 0
+    server.use(
+      http.patch('/api/v1/me/links/:id', async () => {
+        enVuelo += 1
+        maxConcurrente = Math.max(maxConcurrente, enVuelo)
+        // 700 ms y no 250: con un PATCH corto el de notas termina ANTES de
+        // que el debounce de 400 ms dispare el de progreso, así que nunca se
+        // solapan y el test pasaba igual sin el scope — era un falso verde.
+        // La ventana tiene que ser más larga que el debounce.
+        await delay(700)
+        enVuelo -= 1
+        return undefined
+      }),
+    )
+
+    const entry = looseEntry()
+    const { client } = setup(entry, [entry])
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+    // Los dos hooks sobre el MISMO link, montados en el mismo cliente.
+    const progreso = renderHook(() => useUpdateEntryProgress(1, entry), {
+      wrapper,
+    })
+    const meta = renderHook(() => useUpdateEntryMeta(1, entry.linkId), {
+      wrapper,
+    })
+
+    act(() => progreso.result.current.setProgress(13))
+    act(() => meta.result.current.mutate({ notes: 'hola' }))
+
+    await waitFor(() => expect(maxConcurrente).toBeGreaterThan(0), {
+      timeout: 3000,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 2200))
+
+    // Con el scope compartido por link las dos se serializan. Sin él daría 2,
+    // y entonces el rollback de la que falle se lleva el resultado de la otra.
+    expect(maxConcurrente).toBe(1)
+  }, 10000)
+
+  // Hallazgo F1 de la auditoría del 2026-10-01. El test de arriba desmonta
+  // ANTES de que venza el debounce, así que `inFlight` es `false` y el flush
+  // sale solo: no cubre el caso en que ya hay un commit en vuelo.
+  it('desmontar con uno en vuelo y uno pendiente no los manda en paralelo', async () => {
+    let enVuelo = 0
+    let maxConcurrente = 0
+    const valores: number[] = []
+    server.use(
+      // `request.clone()` y `return undefined`: se cuenta y se demora, pero
+      // responde el handler real. Devolver un objeto inventado acá haría
+      // fallar la validación Zod del service, y el commit contaría como
+      // fallido — que es un camino distinto del que este test mide.
+      http.patch('/api/v1/me/links/:id', async ({ request }) => {
+        enVuelo += 1
+        maxConcurrente = Math.max(maxConcurrente, enVuelo)
+        const body = (await request.clone().json()) as {
+          watchedEpisodes?: number
+        }
+        valores.push(body.watchedEpisodes ?? -1)
+        await delay(700)
+        enVuelo -= 1
+        return undefined
+      }),
+    )
+
+    const entry = looseEntry()
+    const { hook } = setup(entry, [entry])
+
+    act(() => hook.result.current.setProgress(13))
+    // Pasados los 400 ms del debounce, el commit de 13 ya está en vuelo.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    act(() => hook.result.current.setProgress(14))
+    // El timer de 14 vence, ve `inFlight` y corta sin agendar nada: el único
+    // que lo mandaría es el `onSettled` del commit de 13.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    // Y acá el usuario cambia de carpeta, con 13 en vuelo y 14 pendiente.
+    hook.unmount()
+
+    await waitFor(() => expect(valores).toHaveLength(2), { timeout: 5000 })
+
+    // Lo que arregla el bug: el flush del desmontaje espera al commit en vuelo
+    // en vez de salir en paralelo. Los dos PATCH mandan el valor ABSOLUTO, así
+    // que solapados el servidor podía quedarse con el viejo. Sin el arreglo
+    // esto da 2.
+    expect(maxConcurrente).toBe(1)
+    expect(valores).toEqual([13, 14])
+  }, 10000)
+
+  it('si el commit en vuelo falla, el desmontaje NO manda el de arrastre', async () => {
+    // La política del hook es abortar la cadena entera cuando un commit falla
+    // (su `onError` revierte el cache y avisa). El flush del desmontaje tiene
+    // que respetarla: mandar el de arrastre después volvería a separar la
+    // pantalla de lo que el usuario vio revertirse.
+    const valores: number[] = []
+    server.use(
+      http.patch('/api/v1/me/links/:id', async ({ request }) => {
+        const body = (await request.json()) as { watchedEpisodes?: number }
+        valores.push(body.watchedEpisodes ?? -1)
+        await delay(700)
+        return HttpResponse.error()
+      }),
+    )
+
+    const entry = looseEntry()
+    const { hook } = setup(entry, [entry])
+    act(() => hook.result.current.setProgress(13))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    act(() => hook.result.current.setProgress(14))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    hook.unmount()
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled(), {
+      timeout: 5000,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    // Solo salió el de 13, que falló. El 14 se descarta con la cadena.
+    expect(valores).toEqual([13])
+  }, 10000)
 
   it('CA extra: subir un hijo mueve el agregado del padre en el mismo frame', () => {
     const seed = groupedEntries()
