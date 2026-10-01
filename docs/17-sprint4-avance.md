@@ -275,3 +275,110 @@ también la variable pasada a mano, así que `VITE_API_MODE=real npx vitest run`
 no cambia nada. Es deliberado, pero hay que saberlo.
 
 Encaja bajo la tarea 4.6 (Tests) del plan; no es una tarea nueva.
+
+## Actualización (2026-09-30) — Tarea 4.4: página de error de ruta y banner de offline
+
+Avance de 4.4, **no su cierre** (ver "Qué falta de 4.4" al final).
+
+### Qué había y qué no
+
+Antes de escribir nada se revisó el estado real, porque la tarea nombra cuatro
+piezas y dos ya existían:
+
+| Pieza que pide 4.4 | Estado previo |
+|---|---|
+| Página 404 | **Ya existía** (`NotFoundPage`, enganchada a `path: '*'`) |
+| Estado de error con retry dentro de una página | **Ya existía** (`ErrorState`, lo usan las queries) |
+| ErrorBoundary por página | **No existía**: ni un `errorElement` en el router |
+| Banner de offline | **No existía** nada |
+
+Detalle revelador: el comentario de `ErrorState.tsx` decía "se usa junto a
+ErrorBoundary por página" — una promesa a algo que nunca se construyó. Hoy sí
+existe.
+
+### La decisión de diseño: `errorElement` en cada ruta, no solo en la raíz
+
+React Router hace burbujear un error de render hasta el `errorElement` más
+cercano. Puesto **solo en la raíz**, cualquier error reemplazaría el layout
+entero y el usuario quedaría **encerrado** en la pantalla de error, sin header
+ni bottom tabs, o sea sin forma de irse a otra parte de la app. Puesto en cada
+página, el error queda contenido en el `<Outlet>` y la navegación sobrevive.
+La raíz lleva uno igual, como último recurso para cuando lo que falle sea el
+layout mismo (`useApplyTheme`, `useMe`), donde no hay página hija a la que
+burbujear.
+
+Se aplica con un `map` recursivo (`withErrorElement`) y no repitiendo la
+propiedad trece veces, porque lo segundo se olvida: una ruta nueva sin
+`errorElement` volvería a la pantalla en blanco y nada lo delataría. **Ese
+olvido tiene su propio test**, que recorre el router de producción y falla
+nombrando la ruta sin boundary — comprobado inyectando una a mano.
+
+Detalle de tipos que costó un intento: `RouteObject` es una unión discriminada
+donde la variante índice exige `children?: undefined`, así que `{...route}` más
+un `children` opcional no encaja en ninguna variante. Hay que preguntar por
+`route.children` primero para que TypeScript estreche el tipo.
+
+El stack trace se muestra **solo en desarrollo**: en producción filtra rutas de
+archivos y estructura interna sin darle nada útil a quien lo lee.
+
+### El offline es un banner y no una página, a propósito
+
+Quedarse sin red no invalida lo que ya está en pantalla: el cache de TanStack
+Query sigue sirviendo el catálogo y las listas ya cargadas. Reemplazar todo por
+una pantalla de "estás offline" le quitaría al usuario contenido que sí puede
+seguir leyendo. Lo que hay que advertir es lo que deja de funcionar: escribir.
+Es también lo que pide el plan.
+
+`role="status"` y no `role="alert"`: `alert` interrumpe al lector de pantalla
+cortando lo que esté leyendo, y un cambio de conectividad no lo justifica.
+
+El hook (`useOnlineStatus`) va con **`useSyncExternalStore`** y no con
+`useState` + `useEffect`, porque es literalmente una suscripción a un valor que
+vive fuera de React. La diferencia no es de estilo: con el par
+`useState`/`useEffect` hay una ventana entre el primer render y el efecto en la
+que se muestra un valor ya viejo, y el caso "el usuario abre la app ya sin
+conexión" se erraría porque no hay ningún evento por llegar. Ese caso tiene test.
+
+**Cuánto se le puede creer a `navigator.onLine`:** poco, y está documentado en
+el hook. `true` solo significa que hay *alguna* interfaz de red activa, no que
+internet sea alcanzable — un router caído o un portal cautivo reportan `true`.
+El `false` sí es confiable. Por eso esto sirve para **avisar** y nada en la app
+decide lógica con él; detectar si el backend responde es trabajo de
+`lib/http.ts`, que ya traduce el fallo de red a un `ApiError`.
+
+### Verificación
+
+`typecheck` y `lint` limpios, **281/281 tests** en 52 archivos (271 previos + 10
+nuevos).
+
+Revisión visual con el Chromium de Playwright por CDP, en light y dark a 360px
+y 1440px. Dos cosas que solo se vieron ahí:
+
+1. **El banner y los estados de error de las páginas se complementan.** Con la
+   red cortada, la home muestra su propio "Something went wrong" en los
+   carruseles (las queries fallaron) y el banner de arriba **explica por qué**.
+   Antes ese error aparecía sin contexto.
+2. **El header decía "AniTrack".** El renombre del 2026-09-30 había cubierto la
+   prosa y los identificadores, pero no el nombre visible en la app: el
+   wordmark, las iniciales del logo y el `<title>` de `index.html`. Se corrigió
+   (ver ADR-023). Las iniciales, además, estaban **hardcodeadas** en
+   `Header.tsx` contra ADR-007, que es justo por qué el renombre no las alcanzó
+   — no estaban donde viven los strings. Pasaron a `t.app.mark`.
+
+La secuencia del banner se verificó en el orden real del usuario y no forzando
+el estado: la app carga online (`navigator.onLine: true`, sin banner), después
+se corta la red por CDP (`onLine: false`) y el banner aparece. El primer
+intento fue mal justamente por atajar —disparar el evento `offline` a mano no
+engaña al componente, porque relee `navigator.onLine` en cada render—, lo cual
+es una confirmación de que el hook hace lo correcto.
+
+### Qué falta de 4.4
+
+- El criterio de aceptación es "errores inyectados por MSW demostrables". El
+  mecanismo existe (`?mockError=INTERNAL`, header `x-mock-error`) y los estados
+  de error de las queries también, pero **no se recorrió página por página**
+  que cada una muestre su estado de error y su retry con un error inyectado.
+  Eso es lo que queda para cerrar la tarea.
+- El camino "en producción NO se filtra el stack trace" no está cubierto por
+  test: haría falta remockear `lib/env`. Está verificado por lectura, no por
+  test.

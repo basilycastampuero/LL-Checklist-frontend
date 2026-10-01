@@ -255,7 +255,12 @@ path.
 > [17-sprint4-avance.md](./17-sprint4-avance.md). ✅ **4.11 y 4.12 completas**
 > (2026-09-30): los dos hallazgos de severidad baja que la revisión post-3b
 > dejó abiertos (#19 y #20) quedan cerrados, con lo que esa revisión no deja
-> deuda. Resto del sprint sin empezar.
+> deuda. ⚠️ **4.4 con avance sustancial, sin cerrar** (2026-09-30): el router
+> tiene `errorElement` en cada ruta con una página de error real (antes un
+> error de render dejaba pantalla blanca) y hay banner de offline; la 404 y el
+> `ErrorState` con retry ya existían. Falta su criterio de aceptación: recorrer
+> página por página que el error inyectado por MSW sea demostrable. Resto del
+> sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
 |---|---|---|---|
