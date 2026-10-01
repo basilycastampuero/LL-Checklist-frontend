@@ -41,6 +41,10 @@ export function normalizeError(error: unknown): ApiError {
       return new ApiError(code, message, status, existing ?? null, field ?? null)
     }
     if (status === null) {
+      // Marcador técnico, NO texto de cara al usuario: `apiErrorMessage` solo
+      // propaga el `message` del backend para los códigos donde el contrato lo
+      // promete (VALIDATION, ALREADY_LINKED), así que esto nunca se renderiza.
+      // Antes sí llegaba a pantalla — hallazgo #22.
       return new ApiError('INTERNAL', 'Network error', null)
     }
     return new ApiError(statusToCode(status), error.message, status)
