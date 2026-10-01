@@ -45,7 +45,9 @@ export default function SearchPage() {
     <FilterBar
       filters={filters}
       setFilters={setFilters}
-      clearFilters={clearFilters}
+      // Preserva `q` (hallazgo #27): el usuario pide soltar los filtros, no
+        // la búsqueda.
+        clearFilters={() => clearFilters(['q'])}
       hasActiveFilters
       genres={genres.data ?? []}
       platforms={platforms.data ?? []}
@@ -84,7 +86,7 @@ export default function SearchPage() {
           title={t.search.noResultsTitle}
           description={t.search.noResultsBody(query)}
           action={
-            <Button variant="outline" size="sm" onClick={clearFilters}>
+            <Button variant="outline" size="sm" onClick={() => clearFilters(['q'])}>
               {t.common.clearFilters}
             </Button>
           }

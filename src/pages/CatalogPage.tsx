@@ -38,7 +38,7 @@ export default function CatalogPage() {
     <FilterBar
       filters={filters}
       setFilters={setFilters}
-      clearFilters={clearFilters}
+      clearFilters={() => clearFilters()}
       hasActiveFilters={hasActiveFilters}
       genres={genres.data ?? []}
       platforms={platforms.data ?? []}
@@ -65,6 +65,31 @@ export default function CatalogPage() {
 
   const { items, page, pageSize, total } = franchises.data
 
+  // `?page=` fuera de rango (hallazgo #26). Ni el mock ni el backend clampean
+  // `page`: los dos devuelven `items: []` con el `total` verdadero. Sin esta
+  // rama se mostraba "The catalog is empty" —falso, el catálogo tiene cientos
+  // de franquicias— y, como el `return` temprano ocurre antes de
+  // `PaginationControls`, **no quedaba ningún control para volver**: la única
+  // salida era la navegación global.
+  const paginaFueraDeRango = items.length === 0 && page > 1 && total > 0
+
+  if (paginaFueraDeRango) {
+    return (
+      <PageWrapper className="space-y-6">
+        {filterBar}
+        <EmptyState
+          title={t.catalog.pageOutOfRangeTitle}
+          description={t.catalog.pageOutOfRangeBody}
+          action={
+            <Button variant="outline" size="sm" onClick={() => setFilters({ page: 1 })}>
+              {t.catalog.backToFirstPage}
+            </Button>
+          }
+        />
+      </PageWrapper>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <PageWrapper className="space-y-6">
@@ -82,7 +107,7 @@ export default function CatalogPage() {
           }
           action={
             hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
+              <Button variant="outline" size="sm" onClick={() => clearFilters()}>
                 {t.common.clearFilters}
               </Button>
             )

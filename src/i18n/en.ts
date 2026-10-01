@@ -12,7 +12,6 @@ export const en = {
      * quedó diciendo "A" y nadie lo notó hasta la revisión visual.
      */
     mark: 'LL',
-    tagline: 'Find and track your games and anime',
   },
   nav: {
     home: 'Home',
@@ -39,6 +38,8 @@ export const en = {
     /** Primer string con interpolación: se declara como función tipada. */
     pageOf: (page: number, totalPages: number) =>
       `Page ${page} of ${totalPages}`,
+    /** Landmark de navegación de la paginación (hallazgo #32). */
+    pagination: 'Pagination',
     readMore: 'Read more',
     readLess: 'Read less',
   },
@@ -93,6 +94,13 @@ export const en = {
      * `h1` a `h3`. Van en `sr-only` para no alterar el layout del doc 06.
      */
     pageHeading: 'Catalog',
+    /** Aviso de rango de años al revés (hallazgo #35). */
+    yearRangeInverted: 'The "from" year is after the "to" year.',
+    /** Salida del callejón sin salida de `?page=` fuera de rango (#26). */
+    pageOutOfRangeTitle: 'Nothing on this page',
+    pageOutOfRangeBody:
+      'This page is past the end of the results. The catalog itself is not empty.',
+    backToFirstPage: 'Go to first page',
     resultsHeading: 'Results',
     filtersLabel: 'Filters',
     allTypes: 'All',
@@ -232,7 +240,6 @@ export const en = {
       startedAtLabel: 'Started',
       finishedAtLabel: 'Finished',
       save: 'Save',
-      saving: 'Saving…',
       cancel: 'Cancel',
       metaError: 'Could not save the changes. Try again.',
     },
@@ -251,6 +258,13 @@ export const en = {
       syncedCopy: 'Create synced copy',
       syncedCopyHint: 'Episode progress stays in sync between both copies.',
       targetLabel: 'List',
+      /**
+       * El content no tiene ningún nombre alternativo, así que no hay nada que
+       * elegir y el flujo no puede completarse (hallazgo #25). Se explica en
+       * vez de dejar un botón que no hace nada.
+       */
+      displayNameMissing:
+        'This title has no selectable names, so it cannot be added yet.',
       targetRequired: 'Pick a list first',
       displayNameLabel: 'Show as',
       franchiseNameLabel: 'Franchise name',
