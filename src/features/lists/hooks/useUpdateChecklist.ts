@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
 import { patchChecklistNode } from '@/features/lists/utils/checklistTree'
+import { apiErrorMessage } from '@/features/lists/utils/apiErrorMessage'
 import type {
   ChecklistNode,
   CosmeticChecklistPatch,
@@ -33,8 +35,28 @@ interface UpdateChecklistContext {
  * reordenar una carpeta es estructural y no puede ir por el camino optimista,
  * porque `patchChecklistNode` no sabe hacerlo. Mover/reordenar es la tarea 4.10.
  */
-export function useUpdateChecklist(checklistId: number) {
+interface UpdateChecklistOptions {
+  /**
+   * Mensaje de fallback para el toast de error. Se declara **por instancia del
+   * hook** y no al llamar a `mutate` porque TanStack v5 gatea los callbacks
+   * pasados por llamada con `hasListeners()` del observer: si el componente se
+   * desmontó —colapsar la carpeta padre, o cambiar de bottom tab—, nunca
+   * corren y el fallo queda **silencioso**. Los de las opciones del hook los
+   * invoca la mutación misma. Mismo criterio que `useDeleteLink`, que ya lo
+   * documenta para el toast de "deshacer" del wizard.
+   *
+   * Es opcional porque no todos los llamadores lo quieren: el renombre muestra
+   * su error inline en el diálogo, así que un toast sería un aviso duplicado.
+   */
+  errorToast?: string
+}
+
+export function useUpdateChecklist(
+  checklistId: number,
+  options: UpdateChecklistOptions = {},
+) {
   const queryClient = useQueryClient()
+  const { errorToast } = options
 
   return useMutation<
     ChecklistNode,
@@ -81,10 +103,11 @@ export function useUpdateChecklist(checklistId: number) {
       return { previousTree }
     },
 
-    onError: (_error, _variables, context) => {
+    onError: (error, _variables, context) => {
       if (context?.previousTree) {
         queryClient.setQueryData(listKeys.tree(), context.previousTree)
       }
+      if (errorToast) toast.error(apiErrorMessage(error, errorToast))
     },
 
     // Reconciliación obligatoria en AMBOS caminos: el patch optimista es una

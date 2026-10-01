@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { MoreVertical } from 'lucide-react'
-import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +11,6 @@ import { DeleteChecklistDialog } from '@/features/lists/components/DeleteCheckli
 import { useCreateChecklist } from '@/features/lists/hooks/useCreateChecklist'
 import { useUpdateChecklist } from '@/features/lists/hooks/useUpdateChecklist'
 import { useDeleteChecklist } from '@/features/lists/hooks/useDeleteChecklist'
-import { apiErrorMessage } from '@/features/lists/utils/apiErrorMessage'
 import type { ChecklistNode } from '@/features/lists/types'
 import { t } from '@/i18n/en'
 
@@ -45,14 +43,20 @@ interface ChecklistNodeMenuProps {
 export function ChecklistNodeMenu({ node, open, onOpenChange, onClosed }: ChecklistNodeMenuProps) {
   const [dialog, setDialog] = useState<DialogKind>(null)
   const createChecklist = useCreateChecklist()
-  const updateChecklist = useUpdateChecklist(node.id)
+  // Dos instancias del mismo hook a propósito, no una compartida: el toggle de
+  // publicar necesita el toast en las opciones del HOOK (su componente puede
+  // desmontarse antes de que liquide el PATCH, y entonces un callback pasado a
+  // `mutate` no correría — hallazgo F2), mientras el renombre muestra su error
+  // inline en el diálogo y un toast sería duplicado. Comparten el `scope`, así
+  // que siguen serializándose entre sí sobre el mismo nodo.
+  const togglePublish = useUpdateChecklist(node.id, {
+    errorToast: t.lists.errors.publishFailed,
+  })
+  const renameChecklist = useUpdateChecklist(node.id)
   const deleteChecklist = useDeleteChecklist()
 
   function handleTogglePublish() {
-    updateChecklist.mutate(
-      { isPublished: !node.isPublished },
-      { onError: (error) => toast.error(apiErrorMessage(error, t.lists.errors.publishFailed)) },
-    )
+    togglePublish.mutate({ isPublished: !node.isPublished })
   }
 
   return (
@@ -102,7 +106,7 @@ export function ChecklistNodeMenu({ node, open, onOpenChange, onClosed }: Checkl
         onClosed={onClosed}
         mode="rename"
         initialValues={{ name: node.name }}
-        onSubmit={(values) => updateChecklist.mutateAsync(values)}
+        onSubmit={(values) => renameChecklist.mutateAsync(values)}
       />
 
       <ChecklistFormDialog

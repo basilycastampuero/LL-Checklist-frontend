@@ -24,6 +24,7 @@ import { listsService } from '@/features/lists/services/lists.service'
 import { toChecklistTree } from '@/mocks/derive/lists'
 import { checklistsByUser, entriesByChecklist } from '@/mocks/seed/lists'
 import { useSessionStore } from '@/store/sessionStore'
+import { t } from '@/i18n/en'
 import type { UserSession } from '@/features/auth/types'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -50,7 +51,7 @@ function renderTree(onSelect: (id: number) => void = () => {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  render(
+  return render(
     <QueryClientProvider client={client}>
       <ChecklistTree selectedId={null} onSelect={onSelect} />
     </QueryClientProvider>,
@@ -146,7 +147,10 @@ describe('ChecklistNodeMenu — rename', () => {
     )
     // ... y el error queda visible en el dialog, que sigue abierto para reintentar.
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Injected failure',
+      // Con un INTERNAL se muestra el fallback de la operación y NO el
+      // `message` del backend (hallazgo #22): ahí `normalizeError` deja el
+      // mensaje de axios cuando la respuesta no trae el envelope del contrato.
+      t.lists.errors.saveFailed,
     )
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
@@ -261,7 +265,8 @@ describe('ChecklistNodeMenu — delete', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Injected delete failure',
+      // Igual que en el rename: INTERNAL cae al fallback (hallazgo #22).
+      t.lists.errors.deleteFailed,
     )
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     // El dialog modal marca el resto de la página `aria-hidden` mientras está
@@ -313,6 +318,38 @@ describe('ChecklistNodeMenu — publish toggle', () => {
       screen.getByRole('menuitem', { name: 'Unpublish' }),
     ).toBeInTheDocument()
     void user
+  })
+})
+
+describe('ChecklistNodeMenu — el aviso de fallo sobrevive al desmontaje (F2)', () => {
+  // Hallazgo F2 de la auditoría del 2026-10-01. El test de arriba mantiene el
+  // árbol montado de punta a punta, así que el observer siempre tiene
+  // listeners: pasaría idéntico con el toast condenado a no correr. Este
+  // desmonta el árbol con el PATCH en vuelo, que es el camino real —colapsar la
+  // carpeta padre, o cambiar de bottom tab— y el que dejaba el fallo silencioso.
+  it('publicar y desmontar antes de que falle el PATCH igual avisa', async () => {
+    server.use(
+      http.patch('/api/v1/me/checklists/:id', async () => {
+        await delay(300)
+        return HttpResponse.json(
+          { error: { code: 'INTERNAL', message: 'boom' } },
+          { status: 500 },
+        )
+      }),
+    )
+    const { unmount } = renderTree()
+    const user = await openMenuFor('Watching')
+    await user.click(screen.getByRole('menuitem', { name: 'Unpublish' }))
+
+    // El usuario se va antes de que el servidor conteste.
+    unmount()
+
+    // El `onError` de las opciones del HOOK lo invoca la mutación misma, así
+    // que corre igual. Con el callback en las opciones de `mutate()` no
+    // correría y el usuario se quedaría creyendo que despublicó la lista.
+    await waitFor(() => expect(toast.error).toHaveBeenCalled(), {
+      timeout: 3000,
+    })
   })
 })
 
