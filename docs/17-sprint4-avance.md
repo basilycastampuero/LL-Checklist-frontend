@@ -1,10 +1,11 @@
 # 17 — Bitácora: Avance Sprint 4 (integración, pulido y deploy)
 
-> Registra el estado real del Sprint 4 (doc 07) a la fecha. No es un cierre de
-> sprint: solo la tarea 4.13 está resuelta (implementada, verificada y
-> commiteada, pendiente de PR); 4.1 está en curso; 4.11 y 4.12 siguen abiertas; 3.3b y B9
-> (deuda del Sprint 3b) siguen diferidas a la espera de que el dueño del
-> proyecto registre una app de Twitch. Fecha: 2026-09-24.
+> Registra el estado real del Sprint 4 (doc 07). No es un cierre de sprint.
+> Cuerpo y primeras secciones escritos el 2026-09-24 (4.13, mergeada en el PR
+> #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
+> 4.11 y 4.12 cerradas y 4.4 cerrada (2026-09-30). 3.3b y B9 (deuda del
+> Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
+> registre una app de Twitch.
 
 ## Alcance completado
 
@@ -278,7 +279,9 @@ Encaja bajo la tarea 4.6 (Tests) del plan; no es una tarea nueva.
 
 ## Actualización (2026-09-30) — Tarea 4.4: página de error de ruta y banner de offline
 
-Avance de 4.4, **no su cierre** (ver "Qué falta de 4.4" al final).
+Primera mitad de 4.4 (error de ruta y offline). La tarea **se cerró después,
+el mismo día**, con el barrido de la sección siguiente: ahí está el criterio de
+aceptación.
 
 ### Qué había y qué no
 
@@ -372,13 +375,124 @@ intento fue mal justamente por atajar —disparar el evento `offline` a mano no
 engaña al componente, porque relee `navigator.onLine` en cada render—, lo cual
 es una confirmación de que el hook hace lo correcto.
 
-### Qué falta de 4.4
+### Lo que esta primera mitad dejó pendiente
 
-- El criterio de aceptación es "errores inyectados por MSW demostrables". El
-  mecanismo existe (`?mockError=INTERNAL`, header `x-mock-error`) y los estados
-  de error de las queries también, pero **no se recorrió página por página**
-  que cada una muestre su estado de error y su retry con un error inyectado.
-  Eso es lo que queda para cerrar la tarea.
-- El camino "en producción NO se filtra el stack trace" no está cubierto por
-  test: haría falta remockear `lib/env`. Está verificado por lectura, no por
-  test.
+El camino "en producción NO se filtra el stack trace" no está cubierto por
+test: haría falta remockear `lib/env`. Está verificado por lectura, no por
+test. (El otro pendiente que figuraba acá, recorrer las páginas con un error
+inyectado, se resolvió en la sección siguiente.)
+
+## Actualización (2026-09-30) — Tarea 4.4 cerrada: inyección de fallos arreglada y barrido de ocho rutas
+
+Rama `sprint4/errores-y-barrido-a11y`, sin commitear al escribir esto.
+
+### La inyección por query nunca funcionó
+
+`CLAUDE.md` y los comentarios de `src/mocks/handlers.ts` documentaban probar
+los estados de error "sin tocar código" con `?mockError=INTERNAL` en la query o
+con el header `x-mock-error`. **La parte de la query nunca anduvo**:
+`injectedError()` busca el parámetro en la URL de la *request de API*, y nada
+lo ponía ahí; el `?mockError=` de la barra de direcciones no viajaba a ninguna
+parte. Se comprobó en el navegador antes de afirmarlo: con el parámetro
+puesto, `/catalog` cargaba normal. Solo el header (y la URL de la request
+armada a mano) funcionaba.
+
+Importa porque era **el criterio de aceptación de 4.4** ("errores inyectados
+por MSW demostrables"): sin esto la tarea no se podía cerrar.
+
+Arreglo: un interceptor de request en `src/lib/http.ts`, **solo en modo
+mock**, que lee `mockError` de `window.location.search` y lo manda como
+header `x-mock-error`. Se lee en cada request, no una vez al crear el cliente,
+para que alcance con navegar sin recargar.
+
+### El barrido, ruta por ruta
+
+Ocho rutas en el navegador (Chromium de Playwright por CDP, 1440px, modo mock,
+sesión iniciada vía la API de mocks), cada una sin inyección y con
+`?mockError=INTERNAL`:
+
+| Ruta | Resultado |
+|---|---|
+| Home, Catálogo, Detalle de franquicia, Detalle de contenido, Búsqueda, Perfil público | `ErrorState` con retry con la inyección; sin ella, sin error |
+| Mis listas, Ajustes (privadas) | **No mostraban error: redirigían a `/login`.** Defecto real, ver abajo |
+
+Tras el arreglo de abajo, las ocho demuestran su estado de error: **8/8**.
+
+### Defecto real: un 500 en `/auth/me` expulsaba al login
+
+`useMe` hacía `if (query.isError) clearSession()` ante **cualquier** error.
+Un 500 dejaba al usuario como `unauthenticated` y `<RequireAuth>` lo mandaba a
+`/login?next=...`, con la cookie intacta, frente a un formulario que no
+arregla nada porque el servidor sigue fallando. Un 500 no es un fallo de
+autenticación. Decisión y alternativas en **ADR-024**.
+
+Arreglo en tres piezas:
+
+- `src/store/sessionStore.ts`: `SessionStatus` gana `'unresolved'` y la acción
+  `setUnresolved()`, que cambia el status **sin tocar `user`**.
+- `useMe`: solo `UNAUTHORIZED` llama `clearSession()`. Otro error sin usuario
+  previo da `setUnresolved()`. Otro error **con** usuario ya resuelto no toca
+  nada: un refetch fallido no le cierra la sesión a quien la tenía.
+- `src/components/layout/RequireAuth.tsx`: camino nuevo para `unresolved` con
+  `ErrorState` y retry (`refetchQueries` de `authKeys.me()`) en lugar de
+  redirigir. `useIsFetching` muestra skeleton mientras el reintento está en
+  vuelo, porque el store sigue en `unresolved` hasta que resuelva.
+
+Tres cosas para no perder:
+
+- **El texto se corrigió tras verlo en una captura.** La primera versión decía
+  "seguís con la sesión iniciada" mientras el header ofrecía "Log in", y era
+  una afirmación sin respaldo: con un 500 no se sabe si la sesión vive. Quedó
+  diciendo solo lo que se sabe. Es el segundo hallazgo de esta clase que
+  aparece en una revisión visual y no en el código (el primero fue el
+  wordmark "AniTrack", arriba): argumento a favor de que la captura figure en
+  el Definition of Done.
+- **Acoplamiento implícito**, documentado en el código: `refetchQueries` solo
+  actúa sobre queries que ya existen. El retry funciona porque `useMe` vive en
+  `RootLayout`, padre del guard; si se montara `RequireAuth` sin `useMe`, el
+  botón no haría nada y no se quejaría.
+- **Efecto en el flujo real**: como `useMe` reintenta una vez los errores que
+  no son 401 (backoff ~1s), el usuario ve el skeleton alrededor de un segundo
+  más antes del error de sesión.
+
+### Tests
+
+Los escribió el agente de tests: 3 en `src/lib/http.test.ts`, 3 en
+`src/features/auth/hooks/useMe.test.tsx` y 4 en
+`src/components/layout/RequireAuth.test.tsx` (archivo nuevo). **291/291 en 53
+archivos** (antes 281/281 en 52). De cada test nuevo se comprobó que **falla
+sin su arreglo**, revirtiendo temporalmente el código y viendo el rojo (misma
+precaución que ADR-022).
+
+**Lo que los tests no cubren:**
+
+- El camino "en modo real el interceptor NO se registra": requeriría `vi.mock`
+  de `@/lib/env`, frágil por el orden de imports. Es la misma limitación que
+  el stack trace en producción (arriba).
+- No hay test directo de `setUnresolved()` en el store; queda cubierto
+  indirectamente por los de `useMe`.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` 291/291 en 53
+archivos. El barrido y las capturas se hicieron con el Chromium propio de
+Playwright por CDP (no la herramienta MCP), en light y dark, a 360px y 1440px.
+
+### Pregunta abierta (sin resolver): ¿carrera de arranque de MSW?
+
+Durante el barrido hubo **dos corridas** en que el catálogo cargó normal pese
+a la inyección. Al instrumentar con trazas de red dio 5 de 5 correcto
+(`/api/v1/franchises` devolvió 500 dos veces —la original y el reintento del
+QueryClient— y la URL conservó el parámetro en todas las requests). La
+hipótesis es una carrera de arranque del service worker de MSW en el dev
+server, **pero no se reprodujo una vez instrumentada**. Ni resuelta ni
+descartada: si vuelve a aparecer un "no falla cuando debería", empezar por
+acá.
+
+### Estado de 4.4
+
+**Cerrada.** Las cuatro piezas del plan existen (ErrorBoundary por página, retry,
+404, banner offline) y el criterio de aceptación se demostró ruta por ruta
+(8/8) tras el arreglo de la inyección. Reservas honestas: lo anterior es
+verificación **local y en modo mock**; la rama no está commiteada ni pasó por
+CI, y queda la pregunta abierta de arriba.

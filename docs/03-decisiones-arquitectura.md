@@ -1101,3 +1101,48 @@ Este ADR es precisamente la respuesta a esa pregunta cuando alguien la haga.
 Segunda consecuencia, menor: "LL Checklist" ahora nombra dos cosas en los docs
 —el producto y el grupo de seguridad de Odoo `LL Checklist / Administrator`—;
 se distinguen porque el grupo siempre aparece calificado con `/ Administrator`.
+
+---
+
+## ADR-024 — El modelo de sesión distingue `unauthenticated` (el servidor dijo que no) de `unresolved` (no se pudo saber)
+
+**Contexto.** `useMe` llamaba `clearSession()` ante cualquier error de
+`/auth/me`. Un 500, un corte de red o un timeout dejaban al usuario como
+`unauthenticated` y `<RequireAuth>` lo redirigía a `/login?next=...`, con la
+cookie intacta, frente a un formulario que no arregla nada porque el servidor
+sigue fallando. Se descubrió al barrer 4.4: Mis listas y Ajustes no mostraban
+su estado de error, redirigían. Un 500 no es un fallo de autenticación, pero el
+modelo solo tenía dos respuestas posibles ("hay sesión" / "no hay").
+
+**Alternativas consideradas.**
+
+1. Dejar el modelo y no tocar la sesión ante errores que no son 401. Descartada:
+   `status` seguiría en `idle` y `RequireAuth` mostraría skeleton para siempre.
+2. Un campo aparte (`error: boolean`) junto al `status` existente. Descartada:
+   obliga a cada consumidor a combinar dos valores y permite estados
+   incoherentes (`authenticated` con `error`); un solo discriminante lo evita.
+3. **Un cuarto valor, `unresolved`**, con `setUnresolved()` que no toca `user`.
+
+**Decisión.** La alternativa 3. `unauthenticated` significa "el servidor dijo
+que no hay sesión" (401); `unresolved`, "no se pudo averiguar" (500, red,
+timeout). `useMe` solo llama `clearSession()` ante `UNAUTHORIZED`; con otro
+error y sin usuario previo marca `unresolved`; con otro error y un usuario ya
+resuelto no toca nada, porque un refetch fallido no cierra la sesión de quien
+la tenía. `RequireAuth` muestra `ErrorState` con retry en lugar de redirigir.
+El texto del error no afirma nada sobre si la sesión vive, porque no se sabe.
+
+**Consecuencias.**
+
+- Positivas: un fallo del servidor ya no se disfraza de "tu sesión terminó";
+  la cookie y el `next=` no se pierden. Los consumidores que comparan contra
+  `'authenticated'` (`enabled` de las queries de listas, `AddToListButton`) no
+  cambian: `unresolved` no es `authenticated`.
+- Negativas: todo consumidor nuevo de `status` debe decidir qué hace con
+  `unresolved`. El retry (`refetchQueries` de `authKeys.me()`) solo funciona
+  mientras `useMe` viva en `RootLayout`, padre del guard (acoplamiento
+  implícito, comentado en el código). Como `useMe` reintenta una vez los
+  errores que no son 401, el skeleton dura ~1 s más antes del error.
+- `docs/12-diseno-sprint3a.md` describe el store como
+  `idle`/`authenticated`/`unauthenticated`; es el diseño de ese sprint y no se
+  reescribió.
+

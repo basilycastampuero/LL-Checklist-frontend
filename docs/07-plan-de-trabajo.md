@@ -255,11 +255,14 @@ path.
 > [17-sprint4-avance.md](./17-sprint4-avance.md). ✅ **4.11 y 4.12 completas**
 > (2026-09-30): los dos hallazgos de severidad baja que la revisión post-3b
 > dejó abiertos (#19 y #20) quedan cerrados, con lo que esa revisión no deja
-> deuda. ⚠️ **4.4 con avance sustancial, sin cerrar** (2026-09-30): el router
-> tiene `errorElement` en cada ruta con una página de error real (antes un
-> error de render dejaba pantalla blanca) y hay banner de offline; la 404 y el
-> `ErrorState` con retry ya existían. Falta su criterio de aceptación: recorrer
-> página por página que el error inyectado por MSW sea demostrable. Resto del
+> deuda. ✅ **4.4 cerrada** (2026-09-30): `errorElement` en cada ruta con
+> página de error real, banner de offline, y el criterio de aceptación
+> demostrado en ocho rutas con `?mockError=INTERNAL` (8/8). Para lograrlo hubo
+> que arreglar la inyección por query, que nunca había funcionado, y un
+> defecto real: un 500 en `/auth/me` expulsaba al login (ahora el status
+> `unresolved`, ADR-024). Verificación local en modo mock, sin commitear ni
+> pasar por CI; queda una pregunta abierta sobre una posible carrera de
+> arranque de MSW, en [17-sprint4-avance.md](./17-sprint4-avance.md). Resto del
 > sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
