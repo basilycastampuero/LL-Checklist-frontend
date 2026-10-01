@@ -4,7 +4,10 @@
  * sin fijarlo, formatear en una zona horaria con offset negativo (ej. América)
  * corre la fecha un día hacia atrás.
  */
-export function formatReleaseDate(iso: string): string {
+export function formatReleaseDate(iso: string | null): string {
+  // `null` es posible desde el backend real (hallazgo #30): se muestra un
+  // guion en vez de romper el formateo o imprimir "Invalid Date".
+  if (iso == null) return '—'
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
   return new Intl.DateTimeFormat('en-US', {

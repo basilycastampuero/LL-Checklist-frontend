@@ -20,8 +20,13 @@ function unionGenres(f: FranchiseDetail): Genre[] {
 }
 
 function yearsOf(f: FranchiseDetail): number[] {
+  // `releaseDate` pasó a ser `nullable` (hallazgo #30): una versión sin fecha
+  // no aporta año al rango en vez de producir un `NaN` que lo envenenaría.
   return contentsOf(f).flatMap((content) =>
-    content.versions.map((v) => new Date(v.releaseDate).getFullYear()),
+    content.versions
+      .map((v) => v.releaseDate)
+      .filter((iso): iso is string => iso != null)
+      .map((iso) => new Date(iso).getFullYear()),
   )
 }
 
