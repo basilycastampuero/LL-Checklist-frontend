@@ -468,8 +468,15 @@ export const handlers = [
     // escondía un bug real: borrar la carpeta que estabas viendo se veía como
     // una lista vacía contra MSW y como un error permanente contra el backend.
     // El mock se alinea al backend, no al revés.
-    const folder = findChecklist(userTree(uid), Number(params.id))
+    const roots = userTree(uid)
+    const folder = findChecklist(roots, Number(params.id))
     if (!folder) return errorResponse('NOT_FOUND', 'Checklist not found')
+    // Derivar los agregados también en la LECTURA (hallazgo F6). Antes
+    // `refreshAggregates` solo corría en el PATCH y el DELETE, así que el
+    // `aggregatedProgress` del primer render salía de un literal escrito a
+    // mano en el seed. Derivarlo acá es lo que hace cumplir ADR-022: el mock
+    // mantiene el invariante del modelo, no una forma plausible.
+    refreshAggregates(roots)
     return HttpResponse.json({ items: entriesByChecklist[folder.id] ?? [] })
   }),
 
@@ -693,6 +700,36 @@ export const handlers = [
       )
       if (parentAt !== -1) top.splice(parentAt, 1)
     }
+
+    // F5: la copia que se queda sola deja de estar sincronizada. El mock
+    // declara el invariante más arriba —"el par se reconoce por `isSynced &&
+    // versionId`"— y no lo mantenía: la sobreviviente quedaba con
+    // `isSynced: true` y cero copias, así que `ListEntryRow` seguía pintando
+    // el badge "Synced" de algo que ya no lo estaba, y
+    // `useUpdateEntryProgress` seguía invalidando el prefijo entero
+    // `listKeys.all` en cada click para propagar a copias inexistentes.
+    if (entry.kind === 'version' && entry.version?.isSynced) {
+      const versionId = entry.version.versionId
+      const restantes = locateEntries(roots, entriesByChecklist).filter(
+        (location) =>
+          location.entry.kind === 'version' &&
+          location.entry.version?.versionId === versionId,
+      )
+      const solitario = restantes[0]?.entry
+      if (restantes.length === 1 && solitario?.version) {
+        solitario.version.isSynced = false
+      }
+    }
+
+    // F7: renumerar `order` de los hermanos, igual que ya hace el handler de
+    // checklists (ver el razonamiento de más arriba: dejar huecos u `order`
+    // repetidos haría que el orden dependa del de inserción del array). Al
+    // crear se usa `order: entries.length`, así que sin esto borrar el primero
+    // y vincular algo nuevo produce un `order` duplicado. Hoy nada ordena por
+    // ese campo; importa antes de la tarea 4.10 (mover/reordenar).
+    siblings.forEach((hermano, indice) => {
+      hermano.order = indice
+    })
 
     refreshAggregates(roots)
     return new HttpResponse(null, { status: 204 })

@@ -158,12 +158,14 @@ export const entriesByChecklist: Record<number, ListEntry[]> = {
       franchiseId: 10,
       notes: null,
       showProgress: true,
-      aggregatedProgress: {
-        groups: [
-          { abbreviation: 'S1', watched: 25, total: 25 },
-          { abbreviation: 'S2', watched: 3, total: 0 },
-        ],
-      },
+      // Sin `aggregatedProgress` escrito a mano (hallazgo F6). Era el residuo
+      // de la limpieza de ADR-022: `linkCount`, las `stats`, los
+      // `publishedChecklists` y el `libraryIndex` sí se derivan, y este se
+      // quedó. Coincidía con los hijos por casualidad, así que cambiar el
+      // `watchedEpisodes` de 5002 sin tocarlo dejaba el mock mintiendo y
+      // cualquier test seguiría verde contra el valor equivocado — justo el
+      // patrón que ADR-022 vino a cerrar. Ahora lo deriva `deriveAggregates`
+      // al armar el snapshot inicial y `refreshAggregates` en cada mutación.
       childEntries: [
         {
           linkId: 5002,
