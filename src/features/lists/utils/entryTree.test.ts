@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { patchEntryProgress } from '@/features/lists/utils/entryTree'
+import { patchEntryProgress, patchEntryFields } from '@/features/lists/utils/entryTree'
 import type { ListEntry } from '@/features/lists/types'
 
 function versionEntry(
@@ -119,5 +119,53 @@ describe('patchEntryProgress', () => {
       watched: 6,
       total: 25,
     })
+  })
+})
+
+describe('patchEntryFields', () => {
+  it('actualiza notas, puntaje y fechas de un entry suelto sin tocar el progreso', () => {
+    const entries = [versionEntry(1, 3, 'S1'), versionEntry(2, 5, 'S2')]
+    const result = patchEntryFields(entries, 1, {
+      notes: 'great',
+      rating: 9,
+      startedAt: '2025-01-01',
+    })
+    expect(result[0]).toMatchObject({
+      notes: 'great',
+      rating: 9,
+      startedAt: '2025-01-01',
+    })
+    expect(result[0]?.version?.watchedEpisodes).toBe(3)
+  })
+
+  it('actualiza un hijo de grupo y deja intacto el agregado del padre', () => {
+    const entries = [group([versionEntry(1, 3, 'S1'), versionEntry(2, 5, 'S2')])]
+    const before = entries[0]?.aggregatedProgress
+    const result = patchEntryFields(entries, 2, { notes: 'child note' })
+
+    expect(result[0]?.childEntries?.[1]?.notes).toBe('child note')
+    expect(result[0]?.childEntries?.[0]?.notes).toBeNull()
+    expect(result[0]?.aggregatedProgress).toBe(before)
+  })
+
+  it('comparte estructura: solo cambia el padre y el hijo editados', () => {
+    const other = versionEntry(7, 1, 'X')
+    const entries = [other, group([versionEntry(1, 3, 'S1'), versionEntry(2, 5, 'S2')])]
+    const result = patchEntryFields(entries, 1, { rating: 4 })
+
+    expect(result[0]).toBe(other)
+    expect(result[1]).not.toBe(entries[1])
+    expect(result[1]?.childEntries?.[1]).toBe(entries[1]?.childEntries?.[1])
+  })
+
+  it('devuelve el mismo array si el linkId no existe', () => {
+    const entries = [group([versionEntry(1, 3, 'S1')]), versionEntry(7, 1, 'X')]
+    expect(patchEntryFields(entries, 999, { notes: 'x' })).toBe(entries)
+  })
+
+  it('no muta el array de entrada', () => {
+    const entries = [versionEntry(1, 3, 'S1')]
+    patchEntryFields(entries, 1, { notes: 'x' })
+    expect(entries[0]?.notes).toBeNull()
   })
 })
