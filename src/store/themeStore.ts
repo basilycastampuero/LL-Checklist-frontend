@@ -24,6 +24,10 @@ export const useThemeStore = create<ThemeState>()(
         set({ preference: current === 'dark' ? 'light' : 'dark' })
       },
     }),
+    // La clave de localStorage conserva el nombre viejo tras el renombre a
+    // "LL Checklist" (ADR-023): cambiarla haría que cada visitante que ya
+    // eligió un tema volviera a 'system' en su próxima visita, porque la
+    // clave nueva estaría vacía. No vale perder esa preferencia por prolijidad.
     { name: 'anitrack-theme' },
   ),
 )

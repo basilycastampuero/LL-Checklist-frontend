@@ -199,7 +199,7 @@ optimistic update, ver el perfil público con stats.
 | 3.13 | Cierre de la deuda #6 | `CosmeticChecklistPatch` cierra el camino optimista de `useUpdateChecklist` (no negociable) + el mock honra `parentId`/`order` (recortable) | Llamar a `useUpdateChecklist` con `parentId` **no compila**; el mock mueve un nodo entre padres y `GET /me/checklists` lo devuelve en su lugar nuevo, con los hermanos reordenados | 🟡 importante |
 | 3.3b | ⚠️ OAuth Twitch end-to-end | Registrar una app de Twitch propia, crear el `auth.oauth.provider` en el Odoo local, verificar en qué grupo cae el usuario que crea `_auth_oauth_signin` (ADR-015 espera Portal) | Login por Twitch real contra el Odoo local, de punta a punta | ⚪ recortable |
 
-3.7 y 3.8 son el producto: sin ellos AniTrack es un catálogo con listas vacías.
+3.7 y 3.8 son el producto: sin ellos LL Checklist es un catálogo con listas vacías.
 Si el sprint se desborda, el orden de recorte es 3.3b, después 3.11 (menos las
 notas), después 3.10, después la mitad cara de 3.13 y el long-press de 3.7.
 **3.12, 3.7 y 3.8 no se tocan.**
@@ -244,15 +244,23 @@ path.
 > ✅ **4.13 completa** (2026-09-24): logout accesible desde el header
 > (`DropdownMenu` en el avatar) y desde una `SettingsPage` real (apariencia +
 > cuenta), que reemplaza al `PlaceholderPage` anterior. Cierra la deuda de
-> logout abierta desde el Sprint 3a. Vive en la rama `feat/logout-y-settings`,
-> pendiente de PR contra `main`. **4.1 en curso, con avance** (2026-09-25):
-> recorrido manual contra el Odoo local real (uso normal, no adversarial) sin
-> encontrar problemas — incluye copias sincronizadas entre listas y
-> sesión/logout funcionando contra el backend real. Quedan sin probar tres
-> escenarios adversariales y una pregunta abierta sobre si la sincronización
-> fue elegida o automática; detalle en
-> [17-sprint4-avance.md](./17-sprint4-avance.md). Resto del sprint sin
-> empezar.
+> logout abierta desde el Sprint 3a. **Mergeada a `main` en el PR #6**
+> (2026-09-25, tres commits, CI en verde) desde la rama
+> `feat/logout-y-settings`, ya borrada. **4.1 en curso, con avance**
+> (2026-09-25): recorrido manual contra el Odoo local real (uso normal, no
+> adversarial) sin encontrar problemas — incluye copias sincronizadas entre
+> listas y sesión/logout funcionando contra el backend real. Quedan sin probar
+> tres escenarios adversariales y una pregunta abierta sobre si la
+> sincronización fue elegida o automática; detalle en
+> [17-sprint4-avance.md](./17-sprint4-avance.md). ✅ **4.11 y 4.12 completas**
+> (2026-09-30): los dos hallazgos de severidad baja que la revisión post-3b
+> dejó abiertos (#19 y #20) quedan cerrados, con lo que esa revisión no deja
+> deuda. ⚠️ **4.4 con avance sustancial, sin cerrar** (2026-09-30): el router
+> tiene `errorElement` en cada ruta con una página de error real (antes un
+> error de render dejaba pantalla blanca) y hay banner de offline; la 404 y el
+> `ErrorState` con retry ya existían. Falta su criterio de aceptación: recorrer
+> página por página que el error inyectado por MSW sea demostrable. Resto del
+> sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
 |---|---|---|---|

@@ -45,12 +45,12 @@ interface ChecklistNodeMenuProps {
 export function ChecklistNodeMenu({ node, open, onOpenChange, onClosed }: ChecklistNodeMenuProps) {
   const [dialog, setDialog] = useState<DialogKind>(null)
   const createChecklist = useCreateChecklist()
-  const updateChecklist = useUpdateChecklist()
+  const updateChecklist = useUpdateChecklist(node.id)
   const deleteChecklist = useDeleteChecklist()
 
   function handleTogglePublish() {
     updateChecklist.mutate(
-      { id: node.id, patch: { isPublished: !node.isPublished } },
+      { isPublished: !node.isPublished },
       { onError: (error) => toast.error(apiErrorMessage(error, t.lists.errors.publishFailed)) },
     )
   }
@@ -102,7 +102,7 @@ export function ChecklistNodeMenu({ node, open, onOpenChange, onClosed }: Checkl
         onClosed={onClosed}
         mode="rename"
         initialValues={{ name: node.name }}
-        onSubmit={(values) => updateChecklist.mutateAsync({ id: node.id, patch: values })}
+        onSubmit={(values) => updateChecklist.mutateAsync(values)}
       />
 
       <ChecklistFormDialog

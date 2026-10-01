@@ -5,6 +5,7 @@ import { BottomTabs } from '@/components/layout/BottomTabs'
 import { useApplyTheme } from '@/hooks/useApplyTheme'
 import { useMe } from '@/features/auth/hooks/useMe'
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton'
+import { OfflineBanner } from '@/components/common/OfflineBanner'
 
 /**
  * Shell de la app: aplica el tema, resuelve la sesión, y monta header + bottom
@@ -18,6 +19,10 @@ export function RootLayout() {
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <Header />
+      {/* Debajo del header y fuera del `<main>`: es un aviso sobre el estado de
+          la app entera, no contenido de la página, y así no lo tapa ni lo
+          desmonta un cambio de ruta. */}
+      <OfflineBanner />
       <main className="flex-1 pb-20 md:pb-8">
         <Suspense
           fallback={

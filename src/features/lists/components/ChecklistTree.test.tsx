@@ -140,6 +140,35 @@ describe('ChecklistTree', () => {
     expect(onSelect).toHaveBeenCalledWith(2)
   })
 
+  // Tarea 4.11 / hallazgo #19: el patrón ARIA APG pide las dos teclas, y el
+  // `treeitem` es un `<li>`, así que `Space` no tiene click nativo que disparar.
+  it('Space selecciona el nodo con foco igual que Enter', async () => {
+    const user = userEvent.setup()
+    const { onSelect } = renderTree()
+    const completed = await screen.findByRole('treeitem', { name: 'Completed' })
+    completed.focus()
+
+    await user.keyboard('[Space]')
+    expect(onSelect).toHaveBeenCalledWith(2)
+  })
+
+  it('Space no scrollea la página: el keydown queda con defaultPrevented', async () => {
+    renderTree()
+    const completed = await screen.findByRole('treeitem', { name: 'Completed' })
+    completed.focus()
+
+    // Se comprueba con un evento a mano porque `userEvent` no expone el objeto
+    // de evento resultante, y el scroll de la página no es observable en jsdom:
+    // lo verificable es que nadie más va a ver este keydown sin manejar.
+    const event = new KeyboardEvent('keydown', {
+      key: ' ',
+      bubbles: true,
+      cancelable: true,
+    })
+    completed.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   it('un click selecciona el nodo sin togglear expand/collapse', async () => {
     const user = userEvent.setup()
     const { onSelect } = renderTree()

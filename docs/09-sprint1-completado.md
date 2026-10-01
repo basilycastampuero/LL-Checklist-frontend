@@ -89,10 +89,11 @@ Después de terminar el Sprint 1, se reorganizó el workspace para que cada mita
 del proyecto viva en su propio directorio, igual que `ll-odoo/` para el
 backend:
 
-- Todo el código de frontend (antes en la raíz) se movió a `anitrack-frontend/`.
+- Todo el código de frontend (antes en la raíz) se movió a `anitrack-frontend/`
+  (renombrada a `ll-checklist-frontend/` el 2026-09-30, ver ADR-023).
 - La documentación se separó en tres carpetas por audiencia: `docs/` (raíz,
   general — visión + contrato de API), `docs-backend/` (análisis del backend y
-  preguntas a Chano, sin tocar `ll-odoo/`), y `anitrack-frontend/docs/` (esta
+  preguntas a Chano, sin tocar `ll-odoo/`), y `ll-checklist-frontend/docs/` (esta
   carpeta — ADRs, dominio, UI, plan de sprints, esta bitácora).
 - Los nombres de archivo de los docs (`01-...` a `08-...`) se conservaron tal
   cual para que las menciones cruzadas informales ("doc 04", "doc 08") en el
@@ -105,7 +106,7 @@ Se agregó un flujo de desarrollo containerizado, en paralelo al Sprint 1
 Node instalado en el host y para dejar preparado el camino a probar contra el
 backend real de Chano):
 
-- `anitrack-frontend/Dockerfile`: multi-stage (`base` → `dev` con hot-reload,
+- `ll-checklist-frontend/Dockerfile`: multi-stage (`base` → `dev` con hot-reload,
   `build` → `production` con nginx sirviendo el bundle estático).
 - `docker-compose.yml` en la raíz del workspace: servicio `frontend` (dev por
   defecto, contra MSW), `frontend-test` (Vitest en watch mode), y un perfil
@@ -114,11 +115,11 @@ backend real de Chano):
 - `vite.config.ts` ganó `server.host: true` para que el dev server sea
   alcanzable desde fuera del contenedor.
 
-Instrucciones completas en `anitrack-frontend/README.md#docker`.
+Instrucciones completas en `ll-checklist-frontend/README.md#docker`.
 
 ## Verificación
 
-Todo corrido dentro de `anitrack-frontend/` tras la reorganización:
+Todo corrido dentro de `ll-checklist-frontend/` tras la reorganización:
 
 ```bash
 npm run lint       # 0 errores
@@ -135,7 +136,7 @@ y revisar `/dev/ui` en ambos temas a 360px y 1440px.
 
 ## Qué falta (siguiente paso)
 
-- Repo remoto en GitHub para `anitrack-frontend/` (Fase 0.3, cuenta secundaria
+- Repo remoto en GitHub para el frontend (Fase 0.3, cuenta secundaria
   `github.com-segundo`) — ver actualización abajo, falta solo el push inicial.
 - Enviar `docs-backend/08-preguntas-backend.md` a Chano (bloqueo #1).
 - Sprint 2 — catálogo completo (doc 07): `catalog.service` + hooks completos,
@@ -148,11 +149,11 @@ La raíz del workspace (`chambaChambure/`) nunca llegó a tener su propio repo
 Git formal (solo agrupaba carpetas). Para evitar tener documentación viva
 fuera de cualquier repo, `docs/` (visión, contrato de API, brief original) y
 `docs-backend/` (análisis del backend, preguntas a Chano) se movieron dentro
-de `anitrack-frontend/`, como carpetas hermanas de este mismo `docs/`. La
+de `ll-checklist-frontend/`, como carpetas hermanas de este mismo `docs/`. La
 distinción semántica se conserva: `docs-backend/` sigue siendo análisis de un
 sistema externo (`ll-odoo/`), no decisiones propias del frontend.
 
-De paso se inicializó el repo Git de `anitrack-frontend/` (Fase 0.3, parte 1):
+De paso se inicializó el repo Git de `ll-checklist-frontend/` (Fase 0.3, parte 1):
 rama `main` con el estado completo del Sprint 1 + docs unificados, y rama
 `sprint-2-catalogo` creada desde `main` para el trabajo del próximo sprint.
 Falta crear el repo remoto en GitHub (cuenta secundaria) y hacer el push

@@ -375,7 +375,7 @@ vale más que cambiárselo en una rama que no ve.
 
 ## Verificación
 
-Corrido en esta sesión desde `anitrack-frontend/` (rama `sprint-3b-tracking`):
+Corrido en esta sesión desde `ll-checklist-frontend/` (rama `sprint-3b-tracking`):
 
 ```bash
 npm run typecheck   # limpio

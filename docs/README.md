@@ -1,11 +1,26 @@
-# AniTrack Frontend — Documentación
+# LL Checklist Frontend — Documentación
 
 > Generado el 2026-07-06 tras análisis completo del repositorio `ll-odoo`
-> (backend de Chano / chanochambure). Reorganizado el 2026-07-10 (movido a
-> `anitrack-frontend/`) y el 2026-07-10 nuevamente al pasar todo el
-> workspace a este repo Git propio, dejando `docs-backend/` como carpeta
-> hermana (ver [`../docs-backend/`](../docs-backend/README.md)) para no
-> mezclar el análisis del backend de Chano con las decisiones del frontend.
+> (backend de Chano / chanochambure). Reorganizado el 2026-07-10 (movido a la
+> carpeta del frontend, entonces `anitrack-frontend/`) y el 2026-07-10
+> nuevamente al pasar todo el workspace a este repo Git propio, dejando
+> `docs-backend/` como carpeta hermana (ver
+> [`../docs-backend/`](../docs-backend/README.md)) para no mezclar el análisis
+> del backend de Chano con las decisiones del frontend.
+>
+> **Renombre (2026-09-30).** El proyecto se llamaba **AniTrack** y ahora se
+> llama **LL Checklist**, el nombre que le dio Chano y que ya usaban su módulo
+> de Odoo (`ll_checklist`) y su grupo de seguridad. El renombre alcanza al
+> nombre y a la carpeta (`anitrack-frontend/` → `ll-checklist-frontend/`); los
+> identificadores técnicos **conservan a propósito la grafía vieja** —la rama
+> `anitrack/rest-catalog-api`, la base de datos `anitrack`, el header
+> `X-Requested-With: anitrack`, la clave de `localStorage` y los emails de
+> prueba `@anitrack.dev`— porque cambiarlos rompe cosas que funcionan. El
+> repo de GitHub **sí** se renombró, a `basilycastampuero/LL-Checklist-frontend`.
+> El razonamiento completo está en
+> [ADR-023](./03-decisiones-arquitectura.md). Si encontrás "anitrack" en un
+> comando, en una ruta o en una referencia histórica de estos docs, está bien
+> así.
 
 ## En esta carpeta
 
@@ -25,7 +40,7 @@
 | [15-diseno-sprint3b.md](./15-diseno-sprint3b.md) | Diseño técnico del Sprint 3b: el *cómo* de tracking y vinculación — agregado del padre durante la ventana optimista, fan-out de invalidación por mutación, el 409 parseado en el service, el mock de `/me/links` dejando de ser un stub (ADR-020 a ADR-022), plan por tarea y carril B (`ll-odoo`) |
 | [16-sprint3b-avance.md](./16-sprint3b-avance.md) | Bitácora: avance del Sprint 3b — carril A 7/8 (falta 3.3b, OAuth Twitch) y carril B 4/5 (falta solo B9, diferida junto con 3.3b); mock de `/me/links` ejecutando el modelo (3.12), stepper optimistic (3.7), wizard de vinculación (3.8), perfil público (3.10), cierre de la deuda #6 (3.13), notas fuera del flag (3.11), y el fix de un flake de CI por la latencia simulada de MSW |
 | [17-sprint4-avance.md](./17-sprint4-avance.md) | Bitácora: avance del Sprint 4 — tarea 4.13 (punto de entrada de logout en la UI: `SettingsPage` real con apariencia/cuenta, y menú en el avatar del header), que cierra la deuda de logout abierta desde el Sprint 3a |
-| [anitrack_ai_context.md](./anitrack_ai_context.md) | Brief original del proyecto (visión tipo MyAnimeList). Referencia histórica: el backend real NO implementa este modelo tal cual — ver el gap en [`../docs-backend/02-analisis-backend-odoo.md`](../docs-backend/02-analisis-backend-odoo.md) |
+| [ll_checklist_ai_context.md](./ll_checklist_ai_context.md) | Brief original del proyecto (visión tipo MyAnimeList). Referencia histórica: el backend real NO implementa este modelo tal cual — ver el gap en [`../docs-backend/02-analisis-backend-odoo.md`](../docs-backend/02-analisis-backend-odoo.md) |
 
 Los números de archivo (01, 03...) se conservan de la numeración original de
 planificación aunque ya no sean correlativos — así las menciones cruzadas
@@ -36,7 +51,7 @@ importar en qué carpeta terminó viviendo cada uno. El doc 08 vive en
 ## Resumen ejecutivo (TL;DR)
 
 **El hallazgo más importante:** el backend real NO implementa el modelo MyAnimeList
-descrito en `anitrack_ai_context.md`. No existen ratings, ni estados fijos
+descrito en `ll_checklist_ai_context.md`. No existen ratings, ni estados fijos
 (Watching/Completed/...), ni notas, ni fechas de inicio/fin, ni reviews, ni scores
 comunitarios. Lo que existe es:
 
