@@ -94,16 +94,28 @@ export default function CatalogPage() {
 
   return (
     <PageWrapper className="space-y-6">
+      {/* Encabezados `sr-only` (tarea 4.3): esta página no tenía NINGÚN
+          heading, así que quien navega por encabezados no podía saber en qué
+          página estaba, y las tarjetas (`h3`) quedaban colgando sin un `h1`/`h2`
+          encima. Van invisibles porque el layout del doc 06 no lleva título
+          visible acá y el arreglo de accesibilidad no debería cambiar el
+          diseño. */}
+      <h1 className="sr-only">{t.catalog.pageHeading}</h1>
       {filterBar}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-        {items.map((franchise) => (
-          <FranchiseCard
-            key={franchise.id}
-            franchise={franchise}
-            inLibrary={library.hasFranchise(franchise.id)}
-          />
-        ))}
-      </div>
+      <section aria-labelledby="catalog-results">
+        <h2 id="catalog-results" className="sr-only">
+          {t.catalog.resultsHeading}
+        </h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {items.map((franchise) => (
+            <FranchiseCard
+              key={franchise.id}
+              franchise={franchise}
+              inLibrary={library.hasFranchise(franchise.id)}
+            />
+          ))}
+        </div>
+      </section>
       <PaginationControls
         page={page}
         pageSize={pageSize}

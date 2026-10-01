@@ -52,15 +52,24 @@ export function Header() {
         </div>
 
         <div className="ml-auto flex items-center gap-1 md:ml-0">
-          <Link
-            to={paths.search}
+          {/* `Button asChild` y no un <Button> dentro del <Link>: anidado,
+              el <button> quedaba DENTRO del <a> —contenido interactivo dentro
+              de un enlace, que no es HTML conforme— y encima sin nombre
+              accesible propio, porque el `aria-label` vivía en el <a> y el
+              icono es `aria-hidden`. Un lector de pantalla anunciaba un botón
+              sin nombre. Hallazgo del barrido de 4.3, solo visible a 360px
+              porque arriba de `md` este control no se renderiza. */}
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
             className="md:hidden"
             aria-label={t.common.search}
           >
-            <Button variant="ghost" size="icon">
+            <Link to={paths.search}>
               <Search className="size-5" aria-hidden />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <ThemeToggle />
           {user ? (
             // El avatar era un `<Link>` pelado al perfil, así que no había

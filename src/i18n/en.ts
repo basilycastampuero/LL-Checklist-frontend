@@ -87,6 +87,13 @@ export const en = {
     videos: 'Videos',
   },
   catalog: {
+    /**
+     * Encabezados para lectores de pantalla (tarea 4.3). El catálogo no tenía
+     * ningún `h1` y sus tarjetas (`h3`) quedaban huérfanas; búsqueda saltaba de
+     * `h1` a `h3`. Van en `sr-only` para no alterar el layout del doc 06.
+     */
+    pageHeading: 'Catalog',
+    resultsHeading: 'Results',
     filtersLabel: 'Filters',
     allTypes: 'All',
     videoType: 'Video type',
