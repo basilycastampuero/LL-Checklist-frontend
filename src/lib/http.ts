@@ -68,6 +68,33 @@ export function createHttpClient(): AxiosInstance {
     },
   })
 
+  // Inyección de fallos para probar los estados de error de la UI sin tocar
+  // código (tarea 4.4): `?mockError=INTERNAL` en la URL del navegador se
+  // traduce al header que los handlers de MSW ya sabían leer.
+  //
+  // Esto faltaba, y por eso el mecanismo estaba documentado pero no funcionaba:
+  // `injectedError` en `handlers.ts` busca el parámetro en la URL de la
+  // **request de API**, y nadie lo ponía ahí — el `?mockError=` de la barra de
+  // direcciones no viajaba a ninguna parte. Verificado en el navegador antes de
+  // escribir esto: con el parámetro puesto, `/catalog` cargaba normal.
+  //
+  // Solo en modo mock, y la comprobación es deliberadamente redundante con el
+  // hecho de que MSW no corra en modo real: mandarle al backend de verdad un
+  // header que le pide fallar es la clase de cosa que no debe depender de un
+  // solo guardarraíl.
+  //
+  // Se lee en cada request y no una vez al crear el cliente: así alcanza con
+  // navegar a la URL con el parámetro, sin recargar.
+  if (env.apiMode === 'mock') {
+    client.interceptors.request.use((config) => {
+      const code = new URLSearchParams(window.location.search).get('mockError')
+      if (code) {
+        config.headers.set('x-mock-error', code)
+      }
+      return config
+    })
+  }
+
   client.interceptors.response.use(
     (response) => response,
     (error: unknown) => {
