@@ -3,7 +3,7 @@
 > Registra el estado real del Sprint 4 (doc 07). No es un cierre de sprint.
 > Cuerpo y primeras secciones escritos el 2026-09-24 (4.13, mergeada en el PR
 > #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
-> 4.11 y 4.12 cerradas y 4.4 cerrada (2026-09-30). 3.3b y B9 (deuda del
+> 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -496,3 +496,147 @@ acá.
 (8/8) tras el arreglo de la inyección. Reservas honestas: lo anterior es
 verificación **local y en modo mock**; la rama no está commiteada ni pasó por
 CI, y queda la pregunta abierta de arriba.
+
+## Actualización (2026-09-30) — Tareas 4.3 y 4.6: barrido responsive + a11y y cobertura
+
+Rama `sprint4/errores-y-barrido-a11y`, sin commitear ni pasar por CI al
+escribir esto. Todo lo medido es local, en modo mock.
+
+### 4.3 — Barrido responsive + a11y
+
+El criterio de aceptación del plan es "Checklist en PR"; el checklist y su
+resultado son esta sección.
+
+**Método.** Chromium propio de Playwright por CDP (no la herramienta MCP),
+sobre el dev server en modo mock y con sesión iniciada. Se recorrieron
+**6 rutas x 4 anchos x 2 temas**:
+
+- Rutas: `/`, `/catalog`, `/franchise/1`, `/search?q=a`, `/my-lists`,
+  `/settings`.
+- Anchos: 360, 768, 1024 y 1440. Temas: light y dark.
+- Aparte, un recorrido de 14 tabulaciones en la home a 1440 verificando que
+  cada parada tenga anillo de foco visible.
+
+**Checklist y resultado, tras los arreglos** (reverificado en el navegador en
+los dos temas, las 24 combinaciones de ruta x ancho):
+
+| Chequeo | Resultado |
+|---|---|
+| Overflow horizontal | 0 |
+| Contraste WCAG AA de todo texto visible | 0 fallos |
+| Botones y enlaces sin nombre accesible | 0 |
+| Imágenes sin `alt` | 0 |
+| Inputs sin etiqueta | 0 |
+| `h1` por página | exactamente 1 |
+| Saltos de nivel de encabezado | ninguno |
+| Foco visible en el recorrido por teclado (14 paradas, home a 1440) | 14/14 |
+
+**Hallazgos reales (3), los tres arreglados:**
+
+1. **`<button>` anidado en un `<a>` en el header**
+   (`src/components/layout/Header.tsx`), en el control de búsqueda que solo se
+   renderiza bajo `md`, es decir **solo visible a 360px**. El `aria-label`
+   vivía en el `<a>` y el icono es `aria-hidden`, así que el `<button>`
+   interno no tenía nombre propio (un lector anunciaba un botón sin nombre), y
+   además contenido interactivo dentro de un enlace no es HTML conforme. Se
+   resolvió con `<Button asChild>` envolviendo el `<Link>`, el patrón que el
+   resto del código ya usa.
+2. **`/catalog` no tenía ningún encabezado**, ni un `h1`: quien navega por
+   encabezados no sabía en qué página estaba y las tarjetas (`h3`) quedaban
+   sin nada encima.
+3. **`/search` saltaba de `h1` a `h3`**: faltaba un `h2` entre el título y las
+   tarjetas.
+
+Para 2 y 3 se agregaron encabezados **`sr-only`**: un `h1` de página en el
+catálogo y un `h2` de región para el grid de resultados en catálogo y
+búsqueda, con los strings en `t.catalog.pageHeading` y
+`t.catalog.resultsHeading`. Van invisibles a propósito: el layout del doc 06
+no lleva título visible en esas páginas y un arreglo de accesibilidad no
+debería cambiar el diseño. **El nivel de las tarjetas no se tocó**: en la home
+es correcto (h1 del hero → h2 del carrusel → h3 de la tarjeta); lo que faltaba
+eran los niveles intermedios en esas dos páginas.
+
+**Gotcha metodológico: el auditor de contraste que casi arruina el
+resultado.** El primer auditor dio decenas de fallos con ratio exactamente
+1.00 (texto del mismo color que su fondo), imposible para texto visible. La
+causa: Tailwind v4 define los colores en `oklch()`, `getComputedStyle` los
+devuelve como `oklch(0.145 0 0)` y el parser los leía como si fueran RGB. El
+truco habitual del canvas para normalizar a `rgb()` **tampoco sirve**, porque
+Chrome conserva `oklch`. Se reescribió con la conversión oklch → sRGB lineal
+(matriz de Björn Ottosson), que además es lo que WCAG necesita para la
+luminancia relativa, y se validó contra dos valores conocidos: blanco sobre
+negro da 21 y `#767676` sobre blanco da 4.54. Solo con esa validación los
+resultados sirven; **el primer resultado se descartó entero**. Quien repita la
+auditoría debe validar el auditor con esos dos valores antes de confiar en él.
+
+**Lo que este barrido no cubre.** Es una auditoría automatizada de reglas
+medibles, no una prueba de uso con tecnología asistiva: **sigue sin haber
+verificación con un lector de pantalla real** (NVDA/VoiceOver). La deuda
+arrastrada desde el Sprint 3a (docs 13 y 16) sigue abierta, con su nota
+actualizada.
+
+### 4.6 — Tests y cobertura
+
+Primera medición de cobertura del proyecto; se cerraron los huecos que valían
+la pena, elegidos por riesgo y no por porcentaje.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| Statements | 84.82% | **88.14%** |
+| Branches | 76.3% | **79.3%** |
+| Functions | 82.26% | **85.34%** |
+| Lines | 87.99% | **91.24%** |
+| Tests | 291 en 53 archivos | **335 en 60 archivos** |
+
+Los 44 tests nuevos están en 7 archivos (6 nuevos y uno extendido):
+
+- `HomePage.tsx` (0%, siendo la pantalla de aterrizaje): 9 tests con los
+  cuatro estados del Definition of Done (loading, data, empty, error con
+  retry), el orden de "Recently added", el umbral de 3 franquicias por género
+  y el tope de 3 filas.
+- `FranchiseCarousel.tsx` (0%): 4 tests.
+- `BottomTabs.tsx` (0%, es toda la navegación en mobile): 7 tests.
+- `lib/queryClient.ts` (0%): 7 tests. Lo valioso es la **política
+  documentada** (`staleTime` 60s, sin reintentos ante 4xx), y se cuentan
+  ejecuciones reales: un 403 y un 404 se intentan una vez; un 500, un corte de
+  red y un `Error` genérico, dos.
+- `useApplyTheme.ts` (0%): 7 tests, incluida la desuscripción del listener.
+- `entryTree.ts`, líneas 129-139 (`patchEntryFields`): 5 tests, incluidos
+  structural sharing y no mutación del input.
+- `RootLayout.tsx` y `NotFoundPage.tsx` (0%): 5 tests. `RootLayout` además
+  monta el `OfflineBanner` de 4.4.
+
+**Sin cubrir a propósito** (decisión, no olvido): `App.tsx` y `main.tsx`
+(bootstrap), `DevUiPage.tsx` (galería solo de desarrollo), `PlaceholderPage.tsx`
+(trivial), `mocks/browser.ts` (setup de MSW para el navegador) y
+`src/components/ui/**` (shadcn generado: testearlo sería testear Radix). Tampoco
+las ramas defensivas de `noUncheckedIndexedAccess` en `entryTree.ts` ni dos
+fallbacks `?? 0` / `?? []` en `HomePage.tsx` que el schema Zod no deja llegar
+al componente.
+
+**Verificación por mutación.** De los tests nuevos se comprobó que fallan al
+romper temporalmente lo que prueban: 20 mutaciones con `sed`, restaurando el
+archivo cada vez. **Una sobrevivió**: bajar el umbral de género de 3 a 2 en
+`HomePage` no hacía fallar nada, porque el tope de 3 filas cortaba antes de
+llegar al género con 2 franquicias. Se agregó un test específico y entonces sí
+falló. Es un ejemplo concreto de para qué sirve la prueba por mutación: el
+hueco no se veía en el porcentaje de cobertura.
+
+**Hallazgo menor, no arreglado:** en `BottomTabs.tsx` el prop
+`end={tab.to === paths.home}` es redundante, porque React Router ya trata
+`to="/"` como match exacto. Quitarlo no rompe ningún test. No es un bug: es
+código que no hace nada.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` **335/335 en 60
+archivos**; `npm run test:cov` con los porcentajes de arriba; barrido de a11y
+por CDP en light y dark, 6 rutas x 4 anchos. Nada de esto está commiteado ni
+pasó por CI: el criterio "CI verde" de 4.6 se cumple recién cuando el PR pase.
+
+### Qué falta
+
+- Commitear y abrir el PR de la rama `sprint4/errores-y-barrido-a11y` (lo hace
+  el agente de Git).
+- Verificación con lector de pantalla real, deuda abierta.
+- Resto del Sprint 4 (4.2, 4.5, 4.7 a 4.10) sin empezar; 4.1 en curso.

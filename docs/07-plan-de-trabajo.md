@@ -262,8 +262,17 @@ path.
 > defecto real: un 500 en `/auth/me` expulsaba al login (ahora el status
 > `unresolved`, ADR-024). Verificación local en modo mock, sin commitear ni
 > pasar por CI; queda una pregunta abierta sobre una posible carrera de
-> arranque de MSW, en [17-sprint4-avance.md](./17-sprint4-avance.md). Resto del
-> sprint sin empezar.
+> arranque de MSW, en [17-sprint4-avance.md](./17-sprint4-avance.md).
+> ✅ **4.3 cerrada** (2026-09-30): barrido de 6 rutas x 4 anchos x 2 temas con
+> el checklist en la bitácora; tres hallazgos reales, los tres arreglados
+> (`<button>` anidado en un `<a>` del header, `/catalog` sin encabezados,
+> salto `h1`→`h3` en `/search`). Es una auditoría automatizada: **la prueba con
+> lector de pantalla real sigue pendiente**. ✅ **4.6 cerrada** (2026-09-30):
+> primera medición de cobertura (statements 84.82% → 88.14%, branches 76.3% →
+> 79.3%, functions 82.26% → 85.34%, lines 87.99% → 91.24%) y 335 tests en 60
+> archivos (antes 291 en 53). Ambas verificadas en local, sin commitear ni
+> pasar por CI: el "CI verde" del criterio de 4.6 queda pendiente de ese paso.
+> Resto del sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
 |---|---|---|---|
