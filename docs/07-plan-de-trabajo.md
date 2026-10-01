@@ -272,6 +272,13 @@ path.
 > 79.3%, functions 82.26% → 85.34%, lines 87.99% → 91.24%) y 335 tests en 60
 > archivos (antes 291 en 53). Ambas verificadas en local, sin commitear ni
 > pasar por CI: el "CI verde" del criterio de 4.6 queda pendiente de ese paso.
+>
+> **Auditoría del frontend (2026-10-01):** existe una auditoría de los
+> sprints 3a en adelante, con 26 hallazgos (#21 a #36 y F1 a F10), **todos
+> cerrados** el mismo día, documentada en
+> [18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md).
+> Ninguno fue tarea numerada: salieron de la auditoría, no del plan.
+>
 > Resto del sprint sin empezar.
 
 | # | Tarea | Detalle | CA |

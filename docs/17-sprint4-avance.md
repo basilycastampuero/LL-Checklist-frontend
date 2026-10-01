@@ -3,7 +3,8 @@
 > Registra el estado real del Sprint 4 (doc 07). No es un cierre de sprint.
 > Cuerpo y primeras secciones escritos el 2026-09-24 (4.13, mergeada en el PR
 > #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
-> 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30). 3.3b y B9 (deuda del
+> 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
+> auditoría cerrados (2026-10-01). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -640,3 +641,175 @@ pasó por CI: el criterio "CI verde" de 4.6 se cumple recién cuando el PR pase.
   el agente de Git).
 - Verificación con lector de pantalla real, deuda abierta.
 - Resto del Sprint 4 (4.2, 4.5, 4.7 a 4.10) sin empezar; 4.1 en curso.
+
+## Actualización (2026-10-01) — F1 y F2 de la auditoría del frontend
+
+**Origen: la auditoría, no el plan.** No es una tarea numerada de
+[07-plan-de-trabajo.md](./07-plan-de-trabajo.md): son los dos hallazgos de
+mayor severidad de la auditoría de antipatrones
+([18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md)), que
+se arreglaron dentro del Sprint 4. Los otros 24 se cerraron después, el
+mismo día (entrada siguiente).
+Detalle completo (escenario, archivo:línea y falso verde originales) en las
+fichas F1 y F2 del doc 18; acá va el resumen.
+
+### F1 — el flush del desmontaje salteaba el `scope`
+
+`useUpdateEntryProgress.ts`: el cleanup mandaba el commit pendiente por
+`listsService.updateLink` directo, sin pasar por el `scope` del hook, y con
+un commit en vuelo salían **dos PATCH absolutos del mismo link en
+paralelo**; si el servidor liquidaba el viejo último, el usuario quedaba con
+el número anterior al que había visto, y el refetch lo confirmaba.
+
+Arreglo: el ref `Burst` guarda `inFlightPromise?: Promise<boolean>`; los
+sitios que disparan un commit usan `mutateAsync(x).then(() => true, () =>
+false)` y el cleanup espera esa promesa antes de mandar el de arrastre.
+**Matiz de diseño:** si el commit en vuelo falla, el de arrastre **no** se
+manda, por la política del hook de abortar la cadena (su `onError` revierte
+y avisa; mandar lo pendiente después separaría la pantalla de lo que el
+usuario vio revertirse). De ahí el booleano. El hook ya no usa `mutate`.
+
+### F2 — el aviso de fallo del toggle de publicar era silencioso
+
+El toast vivía en las opciones de la llamada a `mutate()`; TanStack v5 las
+gatea con `hasListeners()`, así que si el componente se desmontaba
+(colapsar la carpeta padre, cambiar de bottom tab) no corrían: el árbol se
+revertía pero el usuario creía haber publicado una lista que seguía privada.
+Misma forma que el toast de "deshacer" del wizard (lección escrita en
+`useDeleteLink.ts` y `useSignOut.ts`).
+
+Arreglo: `useUpdateChecklist(checklistId, options?)` acepta
+`errorToast?: string` y su `onError` lo dispara solo si se pasó.
+**Matiz:** mover el toast al hook sin más habría duplicado el aviso del
+renombre, que ya muestra su error inline en el diálogo; por eso
+`ChecklistNodeMenu` usa dos instancias, `togglePublish` (con `errorToast`) y
+`renameChecklist` (sin él), que comparten `scope`.
+
+### Tests
+
+Tres nuevos: dos en `useUpdateEntryProgress.test.tsx` (*"desmontar con uno
+en vuelo y uno pendiente no los manda en paralelo"*, que afirma concurrencia
+máxima 1 y orden `[13, 14]`; y *"si el commit en vuelo falla, el desmontaje
+NO manda el de arrastre"*) y uno en `ChecklistNodeMenu.test.tsx` (*"publicar
+y desmontar antes de que falle el PATCH igual avisa"*; `renderTree` ahora
+devuelve el resultado de RTL para poder desmontar).
+
+Trampa metodológica: el primer intento del test de F1 devolvía
+`HttpResponse.json({ ok: true })` y fallaba con un solo PATCH; no era el
+arreglo sino que ese objeto no pasa la validación Zod del service, el commit
+contaba como fallido y el flush abortaba la cadena (correctamente). Se
+resolvió con `await request.clone().json()` para contar sin consumir el body
+y `return undefined` para que responda el handler real.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` **338/338 en 60
+archivos** (eran 335). Los tres tests nuevos **fallan sin su arreglo**,
+revirtiendo el código temporalmente: el de concurrencia con `expected 2 to be
+1`, el de la cadena abortada con `expected [ 13, 14 ] to deeply equal
+[ 13 ]`, y el de F2 al volver el toast a las opciones de `mutate()`.
+**No se verificó en el navegador ni contra el Odoo real.** F1 sigue sin ser
+observable en uso normal contra MSW: los tests inyectan `delay(700)` para
+superar el debounce de 400 ms. Nada está commiteado ni pasó por CI.
+
+## Actualización (2026-10-01) — Cierre de los 24 hallazgos restantes de la auditoría
+
+**Origen: la auditoría, no el plan.** Ninguno es tarea numerada de
+[07-plan-de-trabajo.md](./07-plan-de-trabajo.md). Con esto la auditoría
+([18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md)) queda
+en **26 hallazgos, 26 cerrados, 0 abiertos**. Los 24 son #21 a #36 y F3 a F10;
+cada ficha del doc 18 conserva su escenario original y suma un bloque
+"Cierre". Acá va el resumen por tema.
+
+### El borde con el Odoo real (#21, #22, #23, #29, #30)
+
+- **#21 y #30** (`catalog/services/schemas.ts`): `colorIndex` pasó de
+  `z.number().min(1).max(11)` a `z.number().int()` y `releaseDate` a
+  `.nullable()`; `formatReleaseDate` acepta `null` y `yearsOf`
+  (`mocks/seed/derive.ts`) quedó guardado para no envenenar el rango de años
+  con un `NaN`. Regla: **Zod valida forma, no convenciones estéticas**
+  (**ADR-025**).
+- **#22** (`apiErrorMessage.ts`): solo `VALIDATION` y `ALREADY_LINKED`
+  propagan el `message` del backend; el resto cae al fallback de la
+  operación. El `'Network error'` de `lib/http.ts` quedó marcado como
+  marcador técnico, no texto de UI.
+- **#23 y #29** (`PublicListPage.tsx`): solo `NOT_FOUND` significa "privada o
+  inexistente"; el resto va a `ErrorState` con retry. Guarda de id nulo
+  contra el skeleton eterno.
+
+### Catálogo y búsqueda (#26, #27, #35)
+
+`?page=` fuera de rango tiene rama propia con botón "Go to first page";
+`clearFilters` acepta `keep` y la búsqueda pasa `['q']` para no borrar el
+término; `YearRangeInput` normaliza al valor aplicado y avisa con
+`role="alert"` el rango invertido.
+
+### Accesibilidad y marcado (#24, #25, #28, #31, #32, #33, #34, #36)
+
+- **#24** (`EpisodeStepper`): región viva con el número visible intacto y el
+  texto `valor / total` en `sr-only`; botones con `aria-disabled` en vez de
+  `disabled` en el piso y el tope, porque `disabled` mandaba el foco al
+  `<body>`.
+- **#33** (`OfflineBanner`): el `role="status"` se renderiza siempre y solo
+  alterna el contenido.
+- **#28**: el kebab de nodo es `opacity-100 md:opacity-0`, visible siempre
+  bajo `md`.
+- **#31, #32, #36**: `aria-valuenow` clampeado; `t.common.pagination`;
+  marcador "ya está en tu lista" en `sr-only` y `role="img"` en los iconos.
+- **#25**: `role="alert"` cuando falta el nombre a mostrar en el wizard.
+- **#34**: el efecto de `EntryNotesDialog` depende de `entry.linkId` y no del
+  objeto, con un `eslint-disable` puntual.
+
+### Antipatrones recurrentes (F3 a F10)
+
+- **F3 y F4** (juntos, por pedido del dueño del proyecto):
+  `useUpdateEntryMeta` declara ``scope: { id: `entry-${linkId}` }``, el
+  **mismo id** que `useUpdateEntryProgress`. Compartirlo es el punto: F3 se
+  arreglaría con un id propio, F4 no, porque los dos hooks escriben la misma
+  `queryKey` y restauran el array entero; con ids distintos el rollback de uno
+  borra el resultado del otro.
+- **F5, F6 y F7** (mock): el `DELETE /me/links/:id` baja `isSynced` si queda
+  una sola aparición del `versionId` y renumera el `order`; se eliminó el
+  `aggregatedProgress` escrito a mano del 5001 y `GET
+  /me/checklists/:id/entries` llama `refreshAggregates` (ADR-022 en la
+  lectura).
+- **F8**: `AddToListButton` muestra skeleton en `idle` y error con retry en
+  `unresolved` (ADR-024).
+- **F9 y F10**: aserciones de ruta exactas en `SearchBar.test.tsx`; el
+  docstring de `useUpdateEntryProgress` dice que el flush invalida
+  `listKeys.all`.
+
+### Código muerto
+
+Se borró `src/pages/PlaceholderPage.tsx` (huérfano desde 4.13) y las claves
+`t.app.tagline` y `t.lists.entry.saving`.
+
+### Tests
+
+Un test nuevo para F4 en `useUpdateEntryProgress.test.tsx` (escenario cruzado
+entre los dos hooks, midiendo concurrencia máxima) y uno que afirma que un
+`VALIDATION` propaga su mensaje. Dos hallazgos del proceso, detalle en la
+sección 9 del doc 18:
+
+- **Tres tests afirmaban el bug de #22** (esperaban el `message` crudo de un
+  `INTERNAL`), y otros fijaban comportamientos erróneos en #24, #27, #33 y
+  #36. No eran falsos verdes sino tests que documentaban el defecto; se
+  actualizaron al contrato nuevo.
+- **El test de F4 era un falso verde mío**: pasaba sin el `scope` porque con
+  un PATCH de 250 ms el de notas terminaba antes de que el debounce de 400 ms
+  disparara el de progreso. Con 700 ms falla sin el arreglo (`expected 2 to
+  be 1`). Apareció solo por comprobar que fallara sin el arreglo.
+
+Los arreglos de marcado y accesibilidad (#28, #31, #32, #33 en parte, #36)
+quedaron cubiertos por tests existentes actualizados, no por tests nuevos.
+**#21, #22 y #30 no pueden tener test contra MSW hoy**, porque el mock no
+emite un `colorIndex` fuera de rango, un error sin envelope ni un
+`releaseDate` nulo: hace falta que el mock pueda emitir esas formas.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` **340/340 en 60
+archivos** (338 al cerrar F1 y F2). **No se verificó en el navegador ni
+contra el Odoo real**: #28 y #33 siguen con su experimento sin correr y la
+prueba con lector de pantalla real sigue siendo deuda. Nada está commiteado
+ni pasó por CI.

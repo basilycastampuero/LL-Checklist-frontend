@@ -30,7 +30,15 @@ coverage
 *.sw?
 
 
-# Memoria de trabajo de los agentes de Claude Code: son notas de la herramienta,
-# no del proyecto. Lo que vale de ahí se levanta a docs/ (los gotchas de Radix
-# Tooltip y de scrollHeight en jsdom viven en docs/10-sprint2-avance.md).
-.claude/agent-memory/
+# Todo lo de Claude Code queda FUERA del remoto, por decisión del dueño del
+# proyecto (2026-10-01). Son notas y config de la herramienta, no del proyecto:
+# lo que vale de ahí se levanta a docs/ (los gotchas de Radix Tooltip y de
+# scrollHeight en jsdom viven en docs/10-sprint2-avance.md).
+#
+# Antes solo estaba `agent-memory/`, así que `.claude/agents/` y un `CLAUDE.md`
+# dentro del repo quedaban sin ignorar: no había ninguno, pero un `git add -A`
+# los habría subido sin que nada avisara. Hoy el `CLAUDE.md` del proyecto vive
+# en la raíz del workspace, que no es un repo Git, y por eso nunca entró.
+.claude/
+CLAUDE.md
+CLAUDE.local.md

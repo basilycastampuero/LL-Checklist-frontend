@@ -1146,3 +1146,57 @@ El texto del error no afirma nada sobre si la sesión vive, porque no se sabe.
   `idle`/`authenticated`/`unauthenticated`; es el diseño de ese sprint y no se
   reescribió.
 
+
+---
+
+## ADR-025 — Zod valida la forma de la respuesta, no las convenciones de presentación
+
+**Contexto.** Los schemas de `services/schemas.ts` son el detector de drift
+contra el contrato del doc 04 (ver "Cómo está armado el frontend" en
+`CLAUDE.md`), y el `parse` es de la respuesta **entera**: un solo campo que no
+valida tira abajo la página completa con un `ZodError`, sin reintento posible
+(el `queryClient` no reintenta ante esto). La auditoría del 2026-10-01 halló
+dos casos en que la estrictez costaba una caída total por un detalle
+estético: **#21**, `colorIndex: z.number().min(1).max(11)` contra un
+serializer que emite `0` cuando el género no tiene color (el rango 1–11 es
+la paleta del doc 05, no un invariante de Odoo: el campo es un `Integer` sin
+restricción), y **#30**, `releaseDate: z.string()` contra un serializer que
+puede emitir `None`. En los dos la UI ya sabía qué hacer (`GenreBadge` resuelve
+cualquier índice fuera de rango). MSW no podía delatarlo porque su seed solo
+produce el camino válido.
+
+**Alternativas consideradas.**
+
+1. Mantener la estrictez como detector de drift y aceptar el riesgo de caída.
+   Descartada: lo que detecta no es drift de contrato sino una convención
+   visual, y el costo es una pantalla de error permanente, con un "Try again"
+   que no puede funcionar, hasta que alguien corrija el dato en Odoo.
+2. Normalizar dentro del schema (`.catch(0)`). Descartada: el schema dejaría
+   de validar y pasaría a reescribir datos, y el fallback ya vive en la UI.
+3. **Validar la forma y dejar las convenciones a la capa que las usa.**
+
+**Decisión.** La alternativa 3. Un schema exige lo que el código **no puede
+renderizar sin**: tipo, presencia, nulabilidad que el serializer declara. No
+exige rangos, paletas ni formatos que son una convención de presentación y
+tienen (o deben tener) un fallback en el componente. Aplicado: `colorIndex`
+pasó a `z.number().int()`; `releaseDate` a `.nullable()`, con
+`formatReleaseDate` devolviendo un guion ante `null` y `yearsOf`
+(`mocks/seed/derive.ts`) guardado para que el `null` no envenene el rango de
+años con un `NaN`. La regla vale para todo schema futuro: antes de agregar
+`.min`/`.max`/`.regex` a un campo, preguntar si violarlo rompe el render o
+solo se ve distinto.
+
+**Consecuencias.**
+
+- Positivas: un dato fuera de la paleta o una fecha ausente degradan un
+  elemento y no una página. El criterio es explícito y evita volver a
+  discutirlo schema por schema.
+- Negativas: el detector de drift es más laxo en esos campos (un
+  `colorIndex` de 999 ya pasa el schema y depende de que el componente tenga
+  fallback). Cada campo nulable obliga a que **todos** sus consumidores
+  manejen `null`, y el compilador solo ayuda donde hay tipos.
+- Los arreglos de #21 y #30 **no tienen test**: el mock no emite esas formas.
+  Hasta que pueda hacerlo, esta regla se sostiene por revisión y no por
+  suite (ver `docs/18-auditoria-frontend-2026-10.md`, sección 9).
+- No contradice el principio de validar cada respuesta en el service: lo
+  precisa. Sigue habiendo un `parse` por respuesta; cambia qué se le pide.
