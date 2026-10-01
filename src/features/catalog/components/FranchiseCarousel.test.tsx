@@ -52,12 +52,12 @@ describe('FranchiseCarousel', () => {
     })
 
     const [alpha, beta] = screen.getAllByRole('link')
-    expect(within(alpha!).queryByTitle(t.card.inYourList)).toBeNull()
-    expect(within(beta!).getByTitle(t.card.inYourList)).toBeInTheDocument()
+    expect(within(alpha!).queryByText(t.card.inYourList)).toBeNull()
+    expect(within(beta!).getByText(t.card.inYourList)).toBeInTheDocument()
   })
 
   it('should not flag anything when no predicate is given', () => {
     renderCarousel({ title: 'Row', items: [franchise(1, 'Alpha')] })
-    expect(screen.queryByTitle(t.card.inYourList)).toBeNull()
+    expect(screen.queryByText(t.card.inYourList)).toBeNull()
   })
 })

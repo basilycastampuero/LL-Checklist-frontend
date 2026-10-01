@@ -107,7 +107,14 @@ export function EpisodeStepper({
         size="icon"
         className="size-7"
         aria-label={t.lists.entry.decrease(name)}
-        disabled={disabled || value <= 0}
+        // Sin `disabled` en el piso/tope (hallazgo #24): el navegador devuelve
+        // el foco al `<body>` cuando el elemento enfocado pasa a `disabled`, y
+        // quien navega por teclado perdía su lugar en una lista larga justo al
+        // llegar a 0 o al total. `handleClick` ya corta el paso fuera de
+        // rango, así que el click es un no-op; `aria-disabled` lo comunica sin
+        // sacar el control del orden de tabulación.
+        aria-disabled={disabled || value <= 0}
+        disabled={disabled}
         onClick={() => handleClick(-1)}
         onPointerDown={() => startRepeat(-1)}
         onPointerUp={stop}
@@ -116,8 +123,27 @@ export function EpisodeStepper({
       >
         <Minus className="size-4" aria-hidden />
       </Button>
-      <span className="min-w-7 text-center text-sm font-medium tabular-nums text-foreground">
-        {value}
+      {/* Región viva (hallazgo #24): subir o bajar episodios es la acción
+          central de la app y **nada se anunciaba** — el `aria-label` de los
+          botones es estático y el valor no estaba en ninguna región viva, así
+          que quien usa lector de pantalla no tenía confirmación de que su
+          acción hizo algo. `aria-atomic` para que se lea el valor completo y
+          no solo el dígito que cambió. El contenedor existe siempre, así que
+          la actualización es una mutación de una región ya presente, que es la
+          forma confiable de que se anuncie. */}
+      <span
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="min-w-7 text-center text-sm font-medium tabular-nums text-foreground"
+      >
+        {/* El número visible NO cambia: el doc 06 manda en el layout y un
+            arreglo de accesibilidad no debería rediseñar el control. El texto
+            completo para el lector va aparte, en `sr-only`. */}
+        <span aria-hidden>{value}</span>
+        <span className="sr-only">
+          {max > 0 ? `${value} / ${max}` : value}
+        </span>
       </span>
       <Button
         type="button"
@@ -125,7 +151,8 @@ export function EpisodeStepper({
         size="icon"
         className="size-7"
         aria-label={t.lists.entry.increase(name)}
-        disabled={disabled || atCeiling}
+        aria-disabled={disabled || atCeiling}
+        disabled={disabled}
         onClick={() => handleClick(1)}
         onPointerDown={() => startRepeat(1)}
         onPointerUp={stop}

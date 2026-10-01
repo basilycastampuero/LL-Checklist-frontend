@@ -31,7 +31,11 @@ describe('OfflineBanner (4.4)', () => {
     setOnLine(true)
     render(<OfflineBanner />)
 
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    // El contenedor con role="status" se renderiza SIEMPRE desde el
+    // hallazgo #33: una region viva que se inserta junto con su contenido
+    // es de anuncio poco confiable. Se afirma la ausencia del TEXTO.
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.queryByText(t.offline.title)).not.toBeInTheDocument()
   })
 
   it('aparece al perder la conexión y avisa que los cambios pueden no guardarse', () => {
@@ -50,12 +54,16 @@ describe('OfflineBanner (4.4)', () => {
   it('desaparece al volver la conexión', () => {
     setOnLine(false)
     render(<OfflineBanner />)
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.getByText(t.offline.title)).toBeInTheDocument()
 
     setOnLine(true)
     fireConnectivity('online')
 
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    // El contenedor con role="status" se renderiza SIEMPRE desde el
+    // hallazgo #33: una region viva que se inserta junto con su contenido
+    // es de anuncio poco confiable. Se afirma la ausencia del TEXTO.
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.queryByText(t.offline.title)).not.toBeInTheDocument()
   })
 
   it('ya montado offline, se muestra sin esperar ningún evento', () => {
@@ -65,7 +73,7 @@ describe('OfflineBanner (4.4)', () => {
     setOnLine(false)
     render(<OfflineBanner />)
 
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.getByText(t.offline.title)).toBeInTheDocument()
   })
 
   it('usa role="status" y no role="alert"', () => {
@@ -75,6 +83,6 @@ describe('OfflineBanner (4.4)', () => {
     // `alert` interrumpe al lector de pantalla cortando lo que esté leyendo;
     // un cambio de conectividad no lo justifica.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.getByText(t.offline.title)).toBeInTheDocument()
   })
 })

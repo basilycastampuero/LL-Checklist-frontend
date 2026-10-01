@@ -21,7 +21,7 @@ export function ChecklistNodeActions({ node, open, onOpenChange, onClosed }: Che
   return (
     <span
       className={cn(
-        'shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
+        'shrink-0 opacity-100 md:opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
         open && 'opacity-100',
       )}
       // React hace bubbling de eventos sintéticos siguiendo el árbol de

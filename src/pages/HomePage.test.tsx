@@ -206,9 +206,9 @@ describe('HomePage', () => {
     ).closest('section')!
     const [first, second] = within(section).getAllByRole('link')
     // Orden por año descendente: NotInLibrary (2002) primero, InLibrary después.
-    expect(within(first!).queryByTitle(t.card.inYourList)).toBeNull()
+    expect(within(first!).queryByText(t.card.inYourList)).toBeNull()
     await waitFor(() =>
-      expect(within(second!).getByTitle(t.card.inYourList)).toBeInTheDocument(),
+      expect(within(second!).getByText(t.card.inYourList)).toBeInTheDocument(),
     )
     useSessionStore.setState({ user: null, status: 'idle' })
   })

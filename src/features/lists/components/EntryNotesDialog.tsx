@@ -55,7 +55,14 @@ export function EntryNotesDialog({
     setRating(entry.rating ?? null)
     setStartedAt(entry.startedAt ?? '')
     setFinishedAt(entry.finishedAt ?? '')
-  }, [open, entry])
+    // Dependencia por `linkId` y no por el objeto `entry` (hallazgo #34): con
+    // el objeto, cualquier refetch que trajera algún cambio lo volvía una
+    // referencia nueva, el efecto corría con el diálogo ABIERTO y pisaba lo
+    // que el usuario estaba escribiendo, sin aviso. Lo que lo venía
+    // protegiendo era el structural sharing de TanStack, no este array.
+    // Reponerlo al abrir, y al cambiar de entry, es el motivo original.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, entry.linkId])
 
   const showRating = isFeatureEnabled('ratings')
   const showDates = isFeatureEnabled('watchDates')
