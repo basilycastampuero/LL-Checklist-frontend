@@ -72,6 +72,10 @@ export const en = {
       "The page couldn't finish loading. Reloading usually fixes it; if it keeps happening, the rest of the app still works.",
     crashDetails: 'Technical details',
     reload: 'Reload page',
+    /** La sesión no se pudo verificar por un fallo que no es un 401 (4.4). */
+    sessionErrorTitle: "We couldn't verify your session",
+    sessionErrorBody:
+      "Something went wrong on our side while checking it, so we can't tell whether you're signed in. Try again in a moment.",
   },
   offline: {
     title: "You're offline",
