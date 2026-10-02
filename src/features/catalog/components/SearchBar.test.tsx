@@ -91,7 +91,10 @@ describe('SearchBar', () => {
     // franquicia (índice 0) -> game (índice 1)
     await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
 
-    expect(await screen.findByTestId('location')).toHaveTextContent(
+    // Comparación exacta y no `toHaveTextContent` (hallazgo F9): ese matcher
+    // va por substring, así que pasaría igual con un slug más largo. Es la
+    // forma que ya produjo dos falsos verdes en el proyecto.
+    expect((await screen.findByTestId('location')).textContent).toBe(
       '/franchise/9/content/111-steins-gate-vn',
     )
     // Al navegar, el combobox se limpia y cierra.
@@ -121,7 +124,10 @@ describe('SearchBar', () => {
 
     await user.keyboard('{Enter}')
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/search?q=gate')
+    // Exacta por el mismo motivo (F9): pasaría con `/search?q=gate&page=2`.
+    expect((await screen.findByTestId('location')).textContent).toBe(
+      '/search?q=gate',
+    )
   })
 
   it('Escape cierra el dropdown sin borrar el texto tipeado', async () => {

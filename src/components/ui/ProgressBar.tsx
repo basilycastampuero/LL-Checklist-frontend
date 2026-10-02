@@ -27,7 +27,18 @@ export function ProgressBar({ progress, className }: ProgressBarProps) {
       <div
         role="progressbar"
         aria-valuetext={label}
-        aria-valuenow={isIndeterminate ? undefined : progress.watched}
+        // Clampeado al total (hallazgo #31): si en Odoo se corrige a la baja
+        // el total de una versión sobre un entry que ya tenía más vistos,
+        // quedaba `valuenow` > `valuemax`, combinación inválida en ARIA con la
+        // que algunos lectores anuncian porcentajes absurdos. El
+        // `aria-valuetext` sigue siendo honesto ("24/12").
+        aria-valuenow={
+          isIndeterminate
+            ? undefined
+            : progress.total != null
+              ? Math.min(progress.watched, progress.total)
+              : progress.watched
+        }
         aria-valuemin={isIndeterminate ? undefined : 0}
         aria-valuemax={isIndeterminate ? undefined : (progress.total ?? undefined)}
         className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"

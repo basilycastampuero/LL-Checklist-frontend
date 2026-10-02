@@ -24,7 +24,7 @@ export function PaginationControls({
 
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={t.common.pagination}
       className={cn('flex items-center justify-center gap-4', className)}
     >
       <Button

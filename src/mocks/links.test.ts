@@ -161,6 +161,39 @@ describe('PATCH /me/links/:id', () => {
     expect(other.version?.watchedEpisodes).toBe(10)
   })
 
+  // Hallazgo F5 de la auditoría del 2026-10-01. El mock declaraba el
+  // invariante ("el par se reconoce por `isSynced && versionId`") y no lo
+  // mantenía: ningún test borraba un miembro de un par, así que la regla no
+  // existía y nada se quejaba. La copia sobreviviente quedaba con
+  // `isSynced: true` y cero copias, y la UI pintaba el badge "Synced" de algo
+  // que ya no lo estaba.
+  it('al borrar un miembro del par sincronizado, el que queda deja de estar synced', async () => {
+    const antes = must((await listsService.getEntries(6))[0], 'entry 5006')
+    expect(antes.linkId).toBe(5006)
+    expect(antes.version?.isSynced).toBe(true)
+
+    await api.delete('/me/links/5007')
+
+    const despues = must((await listsService.getEntries(6))[0], 'entry 5006')
+    expect(despues.linkId).toBe(5006)
+    expect(despues.version?.isSynced).toBe(false)
+  })
+
+  // Hallazgo F7. El handler de checklists sí renumeraba a sus hermanos y el de
+  // entries no, así que borrar el primero y vincular algo nuevo producía un
+  // `order` repetido (al crear se usa `order: entries.length`).
+  it('al borrar un entry renumera el `order` de sus hermanos, sin huecos ni repetidos', async () => {
+    const iniciales = await listsService.getEntries(1)
+    expect(iniciales.length).toBeGreaterThan(1)
+
+    await api.delete(`/me/links/${must(iniciales[0], 'primer entry').linkId}`)
+
+    const restantes = await listsService.getEntries(1)
+    const ordenes = restantes.map((entry) => entry.order)
+    expect(ordenes).toEqual(restantes.map((_, indice) => indice))
+    expect(new Set(ordenes).size).toBe(ordenes.length)
+  })
+
   it('rechaza un progreso negativo con VALIDATION', async () => {
     const error = await api
       .patch('/me/links/5000', { watchedEpisodes: -1 })

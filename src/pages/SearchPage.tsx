@@ -45,7 +45,9 @@ export default function SearchPage() {
     <FilterBar
       filters={filters}
       setFilters={setFilters}
-      clearFilters={clearFilters}
+      // Preserva `q` (hallazgo #27): el usuario pide soltar los filtros, no
+        // la búsqueda.
+        clearFilters={() => clearFilters(['q'])}
       hasActiveFilters
       genres={genres.data ?? []}
       platforms={platforms.data ?? []}
@@ -84,22 +86,30 @@ export default function SearchPage() {
           title={t.search.noResultsTitle}
           description={t.search.noResultsBody(query)}
           action={
-            <Button variant="outline" size="sm" onClick={clearFilters}>
+            <Button variant="outline" size="sm" onClick={() => clearFilters(['q'])}>
               {t.common.clearFilters}
             </Button>
           }
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {items.map((franchise) => (
-              <FranchiseCard
-                key={franchise.id}
-                franchise={franchise}
-                inLibrary={library.hasFranchise(franchise.id)}
-              />
-            ))}
-          </div>
+          {/* `h2` sr-only (tarea 4.3): el `h1` de la página saltaba directo a
+              los `h3` de las tarjetas. El nivel de la tarjeta no se toca
+              porque en la home es correcto (h1 → h2 del carrusel → h3). */}
+          <section aria-labelledby="search-results">
+            <h2 id="search-results" className="sr-only">
+              {t.catalog.resultsHeading}
+            </h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              {items.map((franchise) => (
+                <FranchiseCard
+                  key={franchise.id}
+                  franchise={franchise}
+                  inLibrary={library.hasFranchise(franchise.id)}
+                />
+              ))}
+            </div>
+          </section>
           <PaginationControls
             page={page}
             pageSize={pageSize}

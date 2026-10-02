@@ -15,8 +15,15 @@ interface FranchiseCardProps {
 function TypeBadge({ games, videos }: { games: number; videos: number }) {
   return (
     <div className="flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">
-      {videos > 0 && <Film className="size-3" aria-label={t.card.videos} />}
-      {games > 0 && <Gamepad2 className="size-3" aria-label={t.card.games} />}
+      {/* `role="img"` explícito más el `aria-label` (hallazgo #36): lucide no
+          agrega el rol solo, así que el soporte del `aria-label` sobre un
+          `<svg>` pelado es dispar según navegador y lector. */}
+      {videos > 0 && (
+        <Film className="size-3" role="img" aria-label={t.card.videos} />
+      )}
+      {games > 0 && (
+        <Gamepad2 className="size-3" role="img" aria-label={t.card.games} />
+      )}
     </div>
   )
 }
@@ -60,11 +67,13 @@ export function FranchiseCard({ franchise, inLibrary }: FranchiseCardProps) {
             />
           </div>
           {inLibrary && (
-            <div
-              className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground"
-              title={t.card.inYourList}
-            >
+            <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground">
               <Check className="size-3" aria-hidden />
+              {/* `sr-only` y no solo `title` (hallazgo #36): el `title` de un
+                  div genérico la mayoría de los lectores no lo anuncia, así
+                  que "ya está en tu lista" se perdía por completo. Mismo
+                  patrón que `ScoreDisplay`. */}
+              <span className="sr-only">{t.card.inYourList}</span>
             </div>
           )}
         </div>

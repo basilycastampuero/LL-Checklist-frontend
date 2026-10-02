@@ -415,7 +415,9 @@ escenarios de accesibilidad con lector de pantalla real siguen sin probarse
   el avatar del header + `SettingsPage` real — ver
   [17-sprint4-avance.md](./17-sprint4-avance.md)), el alcance
   de la `ir.rule` de ADR-014 a `base.group_portal`,
-  y la falta de verificación con lectores de pantalla reales. **#9 a #14 se
+  y la falta de verificación con lectores de pantalla reales (desde el
+  2026-09-30 hay una auditoría automatizada, tarea 4.3 en el doc 17, pero la
+  prueba con un lector real **sigue pendiente**). **#9 a #14 se
   cerraron como perdidos el 2026-09-22** (irreconstruibles, sin
   archivo/línea/escenario) y una revisión nueva sobre el árbol de listas los
   reemplazó por los hallazgos #15–#20 — ver la actualización del

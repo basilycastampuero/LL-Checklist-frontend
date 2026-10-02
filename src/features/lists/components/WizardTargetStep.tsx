@@ -121,6 +121,17 @@ export function WizardTargetStep({
             {t.lists.wizard.targetRequired}
           </p>
         )}
+        {/* Hallazgo #25: `handleSubmit` corta también si falta el nombre a
+            mostrar, y eso pasa cuando el content no tiene ningún `AltName`
+            (posible por modelo: `content_name_ids` no es `required`). El
+            `NameSelect` no se renderiza, `displayNameId` nace `null`, y el
+            usuario tocaba "Add" y no pasaba NADA: sin explicación y sin forma
+            de avanzar. El único `role="alert"` del paso cubría la carpeta. */}
+        {touched && checklistId != null && displayNameId == null && (
+          <p role="alert" className="text-sm text-destructive">
+            {t.lists.wizard.displayNameMissing}
+          </p>
+        )}
       </div>
 
       {contentNames.length > 0 && (

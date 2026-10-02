@@ -1,10 +1,12 @@
 # 17 — Bitácora: Avance Sprint 4 (integración, pulido y deploy)
 
-> Registra el estado real del Sprint 4 (doc 07) a la fecha. No es un cierre de
-> sprint: solo la tarea 4.13 está resuelta (implementada, verificada y
-> commiteada, pendiente de PR); 4.1 está en curso; 4.11 y 4.12 siguen abiertas; 3.3b y B9
-> (deuda del Sprint 3b) siguen diferidas a la espera de que el dueño del
-> proyecto registre una app de Twitch. Fecha: 2026-09-24.
+> Registra el estado real del Sprint 4 (doc 07). No es un cierre de sprint.
+> Cuerpo y primeras secciones escritos el 2026-09-24 (4.13, mergeada en el PR
+> #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
+> 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
+> auditoría cerrados (2026-10-01). 3.3b y B9 (deuda del
+> Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
+> registre una app de Twitch.
 
 ## Alcance completado
 
@@ -278,7 +280,9 @@ Encaja bajo la tarea 4.6 (Tests) del plan; no es una tarea nueva.
 
 ## Actualización (2026-09-30) — Tarea 4.4: página de error de ruta y banner de offline
 
-Avance de 4.4, **no su cierre** (ver "Qué falta de 4.4" al final).
+Primera mitad de 4.4 (error de ruta y offline). La tarea **se cerró después,
+el mismo día**, con el barrido de la sección siguiente: ahí está el criterio de
+aceptación.
 
 ### Qué había y qué no
 
@@ -372,13 +376,440 @@ intento fue mal justamente por atajar —disparar el evento `offline` a mano no
 engaña al componente, porque relee `navigator.onLine` en cada render—, lo cual
 es una confirmación de que el hook hace lo correcto.
 
-### Qué falta de 4.4
+### Lo que esta primera mitad dejó pendiente
 
-- El criterio de aceptación es "errores inyectados por MSW demostrables". El
-  mecanismo existe (`?mockError=INTERNAL`, header `x-mock-error`) y los estados
-  de error de las queries también, pero **no se recorrió página por página**
-  que cada una muestre su estado de error y su retry con un error inyectado.
-  Eso es lo que queda para cerrar la tarea.
-- El camino "en producción NO se filtra el stack trace" no está cubierto por
-  test: haría falta remockear `lib/env`. Está verificado por lectura, no por
-  test.
+El camino "en producción NO se filtra el stack trace" no está cubierto por
+test: haría falta remockear `lib/env`. Está verificado por lectura, no por
+test. (El otro pendiente que figuraba acá, recorrer las páginas con un error
+inyectado, se resolvió en la sección siguiente.)
+
+## Actualización (2026-09-30) — Tarea 4.4 cerrada: inyección de fallos arreglada y barrido de ocho rutas
+
+Rama `sprint4/errores-y-barrido-a11y`, sin commitear al escribir esto.
+
+### La inyección por query nunca funcionó
+
+`CLAUDE.md` y los comentarios de `src/mocks/handlers.ts` documentaban probar
+los estados de error "sin tocar código" con `?mockError=INTERNAL` en la query o
+con el header `x-mock-error`. **La parte de la query nunca anduvo**:
+`injectedError()` busca el parámetro en la URL de la *request de API*, y nada
+lo ponía ahí; el `?mockError=` de la barra de direcciones no viajaba a ninguna
+parte. Se comprobó en el navegador antes de afirmarlo: con el parámetro
+puesto, `/catalog` cargaba normal. Solo el header (y la URL de la request
+armada a mano) funcionaba.
+
+Importa porque era **el criterio de aceptación de 4.4** ("errores inyectados
+por MSW demostrables"): sin esto la tarea no se podía cerrar.
+
+Arreglo: un interceptor de request en `src/lib/http.ts`, **solo en modo
+mock**, que lee `mockError` de `window.location.search` y lo manda como
+header `x-mock-error`. Se lee en cada request, no una vez al crear el cliente,
+para que alcance con navegar sin recargar.
+
+### El barrido, ruta por ruta
+
+Ocho rutas en el navegador (Chromium de Playwright por CDP, 1440px, modo mock,
+sesión iniciada vía la API de mocks), cada una sin inyección y con
+`?mockError=INTERNAL`:
+
+| Ruta | Resultado |
+|---|---|
+| Home, Catálogo, Detalle de franquicia, Detalle de contenido, Búsqueda, Perfil público | `ErrorState` con retry con la inyección; sin ella, sin error |
+| Mis listas, Ajustes (privadas) | **No mostraban error: redirigían a `/login`.** Defecto real, ver abajo |
+
+Tras el arreglo de abajo, las ocho demuestran su estado de error: **8/8**.
+
+### Defecto real: un 500 en `/auth/me` expulsaba al login
+
+`useMe` hacía `if (query.isError) clearSession()` ante **cualquier** error.
+Un 500 dejaba al usuario como `unauthenticated` y `<RequireAuth>` lo mandaba a
+`/login?next=...`, con la cookie intacta, frente a un formulario que no
+arregla nada porque el servidor sigue fallando. Un 500 no es un fallo de
+autenticación. Decisión y alternativas en **ADR-024**.
+
+Arreglo en tres piezas:
+
+- `src/store/sessionStore.ts`: `SessionStatus` gana `'unresolved'` y la acción
+  `setUnresolved()`, que cambia el status **sin tocar `user`**.
+- `useMe`: solo `UNAUTHORIZED` llama `clearSession()`. Otro error sin usuario
+  previo da `setUnresolved()`. Otro error **con** usuario ya resuelto no toca
+  nada: un refetch fallido no le cierra la sesión a quien la tenía.
+- `src/components/layout/RequireAuth.tsx`: camino nuevo para `unresolved` con
+  `ErrorState` y retry (`refetchQueries` de `authKeys.me()`) en lugar de
+  redirigir. `useIsFetching` muestra skeleton mientras el reintento está en
+  vuelo, porque el store sigue en `unresolved` hasta que resuelva.
+
+Tres cosas para no perder:
+
+- **El texto se corrigió tras verlo en una captura.** La primera versión decía
+  "seguís con la sesión iniciada" mientras el header ofrecía "Log in", y era
+  una afirmación sin respaldo: con un 500 no se sabe si la sesión vive. Quedó
+  diciendo solo lo que se sabe. Es el segundo hallazgo de esta clase que
+  aparece en una revisión visual y no en el código (el primero fue el
+  wordmark "AniTrack", arriba): argumento a favor de que la captura figure en
+  el Definition of Done.
+- **Acoplamiento implícito**, documentado en el código: `refetchQueries` solo
+  actúa sobre queries que ya existen. El retry funciona porque `useMe` vive en
+  `RootLayout`, padre del guard; si se montara `RequireAuth` sin `useMe`, el
+  botón no haría nada y no se quejaría.
+- **Efecto en el flujo real**: como `useMe` reintenta una vez los errores que
+  no son 401 (backoff ~1s), el usuario ve el skeleton alrededor de un segundo
+  más antes del error de sesión.
+
+### Tests
+
+Los escribió el agente de tests: 3 en `src/lib/http.test.ts`, 3 en
+`src/features/auth/hooks/useMe.test.tsx` y 4 en
+`src/components/layout/RequireAuth.test.tsx` (archivo nuevo). **291/291 en 53
+archivos** (antes 281/281 en 52). De cada test nuevo se comprobó que **falla
+sin su arreglo**, revirtiendo temporalmente el código y viendo el rojo (misma
+precaución que ADR-022).
+
+**Lo que los tests no cubren:**
+
+- El camino "en modo real el interceptor NO se registra": requeriría `vi.mock`
+  de `@/lib/env`, frágil por el orden de imports. Es la misma limitación que
+  el stack trace en producción (arriba).
+- No hay test directo de `setUnresolved()` en el store; queda cubierto
+  indirectamente por los de `useMe`.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` 291/291 en 53
+archivos. El barrido y las capturas se hicieron con el Chromium propio de
+Playwright por CDP (no la herramienta MCP), en light y dark, a 360px y 1440px.
+
+### Pregunta abierta (sin resolver): ¿carrera de arranque de MSW?
+
+Durante el barrido hubo **dos corridas** en que el catálogo cargó normal pese
+a la inyección. Al instrumentar con trazas de red dio 5 de 5 correcto
+(`/api/v1/franchises` devolvió 500 dos veces —la original y el reintento del
+QueryClient— y la URL conservó el parámetro en todas las requests). La
+hipótesis es una carrera de arranque del service worker de MSW en el dev
+server, **pero no se reprodujo una vez instrumentada**. Ni resuelta ni
+descartada: si vuelve a aparecer un "no falla cuando debería", empezar por
+acá.
+
+### Estado de 4.4
+
+**Cerrada.** Las cuatro piezas del plan existen (ErrorBoundary por página, retry,
+404, banner offline) y el criterio de aceptación se demostró ruta por ruta
+(8/8) tras el arreglo de la inyección. Reservas honestas: lo anterior es
+verificación **local y en modo mock**; la rama no está commiteada ni pasó por
+CI, y queda la pregunta abierta de arriba.
+
+## Actualización (2026-09-30) — Tareas 4.3 y 4.6: barrido responsive + a11y y cobertura
+
+Rama `sprint4/errores-y-barrido-a11y`, sin commitear ni pasar por CI al
+escribir esto. Todo lo medido es local, en modo mock.
+
+### 4.3 — Barrido responsive + a11y
+
+El criterio de aceptación del plan es "Checklist en PR"; el checklist y su
+resultado son esta sección.
+
+**Método.** Chromium propio de Playwright por CDP (no la herramienta MCP),
+sobre el dev server en modo mock y con sesión iniciada. Se recorrieron
+**6 rutas x 4 anchos x 2 temas**:
+
+- Rutas: `/`, `/catalog`, `/franchise/1`, `/search?q=a`, `/my-lists`,
+  `/settings`.
+- Anchos: 360, 768, 1024 y 1440. Temas: light y dark.
+- Aparte, un recorrido de 14 tabulaciones en la home a 1440 verificando que
+  cada parada tenga anillo de foco visible.
+
+**Checklist y resultado, tras los arreglos** (reverificado en el navegador en
+los dos temas, las 24 combinaciones de ruta x ancho):
+
+| Chequeo | Resultado |
+|---|---|
+| Overflow horizontal | 0 |
+| Contraste WCAG AA de todo texto visible | 0 fallos |
+| Botones y enlaces sin nombre accesible | 0 |
+| Imágenes sin `alt` | 0 |
+| Inputs sin etiqueta | 0 |
+| `h1` por página | exactamente 1 |
+| Saltos de nivel de encabezado | ninguno |
+| Foco visible en el recorrido por teclado (14 paradas, home a 1440) | 14/14 |
+
+**Hallazgos reales (3), los tres arreglados:**
+
+1. **`<button>` anidado en un `<a>` en el header**
+   (`src/components/layout/Header.tsx`), en el control de búsqueda que solo se
+   renderiza bajo `md`, es decir **solo visible a 360px**. El `aria-label`
+   vivía en el `<a>` y el icono es `aria-hidden`, así que el `<button>`
+   interno no tenía nombre propio (un lector anunciaba un botón sin nombre), y
+   además contenido interactivo dentro de un enlace no es HTML conforme. Se
+   resolvió con `<Button asChild>` envolviendo el `<Link>`, el patrón que el
+   resto del código ya usa.
+2. **`/catalog` no tenía ningún encabezado**, ni un `h1`: quien navega por
+   encabezados no sabía en qué página estaba y las tarjetas (`h3`) quedaban
+   sin nada encima.
+3. **`/search` saltaba de `h1` a `h3`**: faltaba un `h2` entre el título y las
+   tarjetas.
+
+Para 2 y 3 se agregaron encabezados **`sr-only`**: un `h1` de página en el
+catálogo y un `h2` de región para el grid de resultados en catálogo y
+búsqueda, con los strings en `t.catalog.pageHeading` y
+`t.catalog.resultsHeading`. Van invisibles a propósito: el layout del doc 06
+no lleva título visible en esas páginas y un arreglo de accesibilidad no
+debería cambiar el diseño. **El nivel de las tarjetas no se tocó**: en la home
+es correcto (h1 del hero → h2 del carrusel → h3 de la tarjeta); lo que faltaba
+eran los niveles intermedios en esas dos páginas.
+
+**Gotcha metodológico: el auditor de contraste que casi arruina el
+resultado.** El primer auditor dio decenas de fallos con ratio exactamente
+1.00 (texto del mismo color que su fondo), imposible para texto visible. La
+causa: Tailwind v4 define los colores en `oklch()`, `getComputedStyle` los
+devuelve como `oklch(0.145 0 0)` y el parser los leía como si fueran RGB. El
+truco habitual del canvas para normalizar a `rgb()` **tampoco sirve**, porque
+Chrome conserva `oklch`. Se reescribió con la conversión oklch → sRGB lineal
+(matriz de Björn Ottosson), que además es lo que WCAG necesita para la
+luminancia relativa, y se validó contra dos valores conocidos: blanco sobre
+negro da 21 y `#767676` sobre blanco da 4.54. Solo con esa validación los
+resultados sirven; **el primer resultado se descartó entero**. Quien repita la
+auditoría debe validar el auditor con esos dos valores antes de confiar en él.
+
+**Lo que este barrido no cubre.** Es una auditoría automatizada de reglas
+medibles, no una prueba de uso con tecnología asistiva: **sigue sin haber
+verificación con un lector de pantalla real** (NVDA/VoiceOver). La deuda
+arrastrada desde el Sprint 3a (docs 13 y 16) sigue abierta, con su nota
+actualizada.
+
+### 4.6 — Tests y cobertura
+
+Primera medición de cobertura del proyecto; se cerraron los huecos que valían
+la pena, elegidos por riesgo y no por porcentaje.
+
+| Métrica | Antes | Después |
+|---|---|---|
+| Statements | 84.82% | **88.14%** |
+| Branches | 76.3% | **79.3%** |
+| Functions | 82.26% | **85.34%** |
+| Lines | 87.99% | **91.24%** |
+| Tests | 291 en 53 archivos | **335 en 60 archivos** |
+
+Los 44 tests nuevos están en 7 archivos (6 nuevos y uno extendido):
+
+- `HomePage.tsx` (0%, siendo la pantalla de aterrizaje): 9 tests con los
+  cuatro estados del Definition of Done (loading, data, empty, error con
+  retry), el orden de "Recently added", el umbral de 3 franquicias por género
+  y el tope de 3 filas.
+- `FranchiseCarousel.tsx` (0%): 4 tests.
+- `BottomTabs.tsx` (0%, es toda la navegación en mobile): 7 tests.
+- `lib/queryClient.ts` (0%): 7 tests. Lo valioso es la **política
+  documentada** (`staleTime` 60s, sin reintentos ante 4xx), y se cuentan
+  ejecuciones reales: un 403 y un 404 se intentan una vez; un 500, un corte de
+  red y un `Error` genérico, dos.
+- `useApplyTheme.ts` (0%): 7 tests, incluida la desuscripción del listener.
+- `entryTree.ts`, líneas 129-139 (`patchEntryFields`): 5 tests, incluidos
+  structural sharing y no mutación del input.
+- `RootLayout.tsx` y `NotFoundPage.tsx` (0%): 5 tests. `RootLayout` además
+  monta el `OfflineBanner` de 4.4.
+
+**Sin cubrir a propósito** (decisión, no olvido): `App.tsx` y `main.tsx`
+(bootstrap), `DevUiPage.tsx` (galería solo de desarrollo), `PlaceholderPage.tsx`
+(trivial), `mocks/browser.ts` (setup de MSW para el navegador) y
+`src/components/ui/**` (shadcn generado: testearlo sería testear Radix). Tampoco
+las ramas defensivas de `noUncheckedIndexedAccess` en `entryTree.ts` ni dos
+fallbacks `?? 0` / `?? []` en `HomePage.tsx` que el schema Zod no deja llegar
+al componente.
+
+**Verificación por mutación.** De los tests nuevos se comprobó que fallan al
+romper temporalmente lo que prueban: 20 mutaciones con `sed`, restaurando el
+archivo cada vez. **Una sobrevivió**: bajar el umbral de género de 3 a 2 en
+`HomePage` no hacía fallar nada, porque el tope de 3 filas cortaba antes de
+llegar al género con 2 franquicias. Se agregó un test específico y entonces sí
+falló. Es un ejemplo concreto de para qué sirve la prueba por mutación: el
+hueco no se veía en el porcentaje de cobertura.
+
+**Hallazgo menor, no arreglado:** en `BottomTabs.tsx` el prop
+`end={tab.to === paths.home}` es redundante, porque React Router ya trata
+`to="/"` como match exacto. Quitarlo no rompe ningún test. No es un bug: es
+código que no hace nada.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` **335/335 en 60
+archivos**; `npm run test:cov` con los porcentajes de arriba; barrido de a11y
+por CDP en light y dark, 6 rutas x 4 anchos. Nada de esto está commiteado ni
+pasó por CI: el criterio "CI verde" de 4.6 se cumple recién cuando el PR pase.
+
+### Qué falta
+
+- Commitear y abrir el PR de la rama `sprint4/errores-y-barrido-a11y` (lo hace
+  el agente de Git).
+- Verificación con lector de pantalla real, deuda abierta.
+- Resto del Sprint 4 (4.2, 4.5, 4.7 a 4.10) sin empezar; 4.1 en curso.
+
+## Actualización (2026-10-01) — F1 y F2 de la auditoría del frontend
+
+**Origen: la auditoría, no el plan.** No es una tarea numerada de
+[07-plan-de-trabajo.md](./07-plan-de-trabajo.md): son los dos hallazgos de
+mayor severidad de la auditoría de antipatrones
+([18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md)), que
+se arreglaron dentro del Sprint 4. Los otros 24 se cerraron después, el
+mismo día (entrada siguiente).
+Detalle completo (escenario, archivo:línea y falso verde originales) en las
+fichas F1 y F2 del doc 18; acá va el resumen.
+
+### F1 — el flush del desmontaje salteaba el `scope`
+
+`useUpdateEntryProgress.ts`: el cleanup mandaba el commit pendiente por
+`listsService.updateLink` directo, sin pasar por el `scope` del hook, y con
+un commit en vuelo salían **dos PATCH absolutos del mismo link en
+paralelo**; si el servidor liquidaba el viejo último, el usuario quedaba con
+el número anterior al que había visto, y el refetch lo confirmaba.
+
+Arreglo: el ref `Burst` guarda `inFlightPromise?: Promise<boolean>`; los
+sitios que disparan un commit usan `mutateAsync(x).then(() => true, () =>
+false)` y el cleanup espera esa promesa antes de mandar el de arrastre.
+**Matiz de diseño:** si el commit en vuelo falla, el de arrastre **no** se
+manda, por la política del hook de abortar la cadena (su `onError` revierte
+y avisa; mandar lo pendiente después separaría la pantalla de lo que el
+usuario vio revertirse). De ahí el booleano. El hook ya no usa `mutate`.
+
+### F2 — el aviso de fallo del toggle de publicar era silencioso
+
+El toast vivía en las opciones de la llamada a `mutate()`; TanStack v5 las
+gatea con `hasListeners()`, así que si el componente se desmontaba
+(colapsar la carpeta padre, cambiar de bottom tab) no corrían: el árbol se
+revertía pero el usuario creía haber publicado una lista que seguía privada.
+Misma forma que el toast de "deshacer" del wizard (lección escrita en
+`useDeleteLink.ts` y `useSignOut.ts`).
+
+Arreglo: `useUpdateChecklist(checklistId, options?)` acepta
+`errorToast?: string` y su `onError` lo dispara solo si se pasó.
+**Matiz:** mover el toast al hook sin más habría duplicado el aviso del
+renombre, que ya muestra su error inline en el diálogo; por eso
+`ChecklistNodeMenu` usa dos instancias, `togglePublish` (con `errorToast`) y
+`renameChecklist` (sin él), que comparten `scope`.
+
+### Tests
+
+Tres nuevos: dos en `useUpdateEntryProgress.test.tsx` (*"desmontar con uno
+en vuelo y uno pendiente no los manda en paralelo"*, que afirma concurrencia
+máxima 1 y orden `[13, 14]`; y *"si el commit en vuelo falla, el desmontaje
+NO manda el de arrastre"*) y uno en `ChecklistNodeMenu.test.tsx` (*"publicar
+y desmontar antes de que falle el PATCH igual avisa"*; `renderTree` ahora
+devuelve el resultado de RTL para poder desmontar).
+
+Trampa metodológica: el primer intento del test de F1 devolvía
+`HttpResponse.json({ ok: true })` y fallaba con un solo PATCH; no era el
+arreglo sino que ese objeto no pasa la validación Zod del service, el commit
+contaba como fallido y el flush abortaba la cadena (correctamente). Se
+resolvió con `await request.clone().json()` para contar sin consumir el body
+y `return undefined` para que responda el handler real.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` **338/338 en 60
+archivos** (eran 335). Los tres tests nuevos **fallan sin su arreglo**,
+revirtiendo el código temporalmente: el de concurrencia con `expected 2 to be
+1`, el de la cadena abortada con `expected [ 13, 14 ] to deeply equal
+[ 13 ]`, y el de F2 al volver el toast a las opciones de `mutate()`.
+**No se verificó en el navegador ni contra el Odoo real.** F1 sigue sin ser
+observable en uso normal contra MSW: los tests inyectan `delay(700)` para
+superar el debounce de 400 ms. Nada está commiteado ni pasó por CI.
+
+## Actualización (2026-10-01) — Cierre de los 24 hallazgos restantes de la auditoría
+
+**Origen: la auditoría, no el plan.** Ninguno es tarea numerada de
+[07-plan-de-trabajo.md](./07-plan-de-trabajo.md). Con esto la auditoría
+([18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md)) queda
+en **26 hallazgos, 26 cerrados, 0 abiertos**. Los 24 son #21 a #36 y F3 a F10;
+cada ficha del doc 18 conserva su escenario original y suma un bloque
+"Cierre". Acá va el resumen por tema.
+
+### El borde con el Odoo real (#21, #22, #23, #29, #30)
+
+- **#21 y #30** (`catalog/services/schemas.ts`): `colorIndex` pasó de
+  `z.number().min(1).max(11)` a `z.number().int()` y `releaseDate` a
+  `.nullable()`; `formatReleaseDate` acepta `null` y `yearsOf`
+  (`mocks/seed/derive.ts`) quedó guardado para no envenenar el rango de años
+  con un `NaN`. Regla: **Zod valida forma, no convenciones estéticas**
+  (**ADR-025**).
+- **#22** (`apiErrorMessage.ts`): solo `VALIDATION` y `ALREADY_LINKED`
+  propagan el `message` del backend; el resto cae al fallback de la
+  operación. El `'Network error'` de `lib/http.ts` quedó marcado como
+  marcador técnico, no texto de UI.
+- **#23 y #29** (`PublicListPage.tsx`): solo `NOT_FOUND` significa "privada o
+  inexistente"; el resto va a `ErrorState` con retry. Guarda de id nulo
+  contra el skeleton eterno.
+
+### Catálogo y búsqueda (#26, #27, #35)
+
+`?page=` fuera de rango tiene rama propia con botón "Go to first page";
+`clearFilters` acepta `keep` y la búsqueda pasa `['q']` para no borrar el
+término; `YearRangeInput` normaliza al valor aplicado y avisa con
+`role="alert"` el rango invertido.
+
+### Accesibilidad y marcado (#24, #25, #28, #31, #32, #33, #34, #36)
+
+- **#24** (`EpisodeStepper`): región viva con el número visible intacto y el
+  texto `valor / total` en `sr-only`; botones con `aria-disabled` en vez de
+  `disabled` en el piso y el tope, porque `disabled` mandaba el foco al
+  `<body>`.
+- **#33** (`OfflineBanner`): el `role="status"` se renderiza siempre y solo
+  alterna el contenido.
+- **#28**: el kebab de nodo es `opacity-100 md:opacity-0`, visible siempre
+  bajo `md`.
+- **#31, #32, #36**: `aria-valuenow` clampeado; `t.common.pagination`;
+  marcador "ya está en tu lista" en `sr-only` y `role="img"` en los iconos.
+- **#25**: `role="alert"` cuando falta el nombre a mostrar en el wizard.
+- **#34**: el efecto de `EntryNotesDialog` depende de `entry.linkId` y no del
+  objeto, con un `eslint-disable` puntual.
+
+### Antipatrones recurrentes (F3 a F10)
+
+- **F3 y F4** (juntos, por pedido del dueño del proyecto):
+  `useUpdateEntryMeta` declara ``scope: { id: `entry-${linkId}` }``, el
+  **mismo id** que `useUpdateEntryProgress`. Compartirlo es el punto: F3 se
+  arreglaría con un id propio, F4 no, porque los dos hooks escriben la misma
+  `queryKey` y restauran el array entero; con ids distintos el rollback de uno
+  borra el resultado del otro.
+- **F5, F6 y F7** (mock): el `DELETE /me/links/:id` baja `isSynced` si queda
+  una sola aparición del `versionId` y renumera el `order`; se eliminó el
+  `aggregatedProgress` escrito a mano del 5001 y `GET
+  /me/checklists/:id/entries` llama `refreshAggregates` (ADR-022 en la
+  lectura).
+- **F8**: `AddToListButton` muestra skeleton en `idle` y error con retry en
+  `unresolved` (ADR-024).
+- **F9 y F10**: aserciones de ruta exactas en `SearchBar.test.tsx`; el
+  docstring de `useUpdateEntryProgress` dice que el flush invalida
+  `listKeys.all`.
+
+### Código muerto
+
+Se borró `src/pages/PlaceholderPage.tsx` (huérfano desde 4.13) y las claves
+`t.app.tagline` y `t.lists.entry.saving`.
+
+### Tests
+
+Un test nuevo para F4 en `useUpdateEntryProgress.test.tsx` (escenario cruzado
+entre los dos hooks, midiendo concurrencia máxima) y uno que afirma que un
+`VALIDATION` propaga su mensaje. Dos hallazgos del proceso, detalle en la
+sección 9 del doc 18:
+
+- **Tres tests afirmaban el bug de #22** (esperaban el `message` crudo de un
+  `INTERNAL`), y otros fijaban comportamientos erróneos en #24, #27, #33 y
+  #36. No eran falsos verdes sino tests que documentaban el defecto; se
+  actualizaron al contrato nuevo.
+- **El test de F4 era un falso verde mío**: pasaba sin el `scope` porque con
+  un PATCH de 250 ms el de notas terminaba antes de que el debounce de 400 ms
+  disparara el de progreso. Con 700 ms falla sin el arreglo (`expected 2 to
+  be 1`). Apareció solo por comprobar que fallara sin el arreglo.
+
+Los arreglos de marcado y accesibilidad (#28, #31, #32, #33 en parte, #36)
+quedaron cubiertos por tests existentes actualizados, no por tests nuevos.
+**#21, #22 y #30 no pueden tener test contra MSW hoy**, porque el mock no
+emite un `colorIndex` fuera de rango, un error sin envelope ni un
+`releaseDate` nulo: hace falta que el mock pueda emitir esas formas.
+
+### Verificación
+
+`npm run typecheck` y `npm run lint` limpios; `npm run test` **340/340 en 60
+archivos** (338 al cerrar F1 y F2). **No se verificó en el navegador ni
+contra el Odoo real**: #28 y #33 siguen con su experimento sin correr y la
+prueba con lector de pantalla real sigue siendo deuda. Nada está commiteado
+ni pasó por CI.

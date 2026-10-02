@@ -12,7 +12,6 @@ export const en = {
      * quedó diciendo "A" y nadie lo notó hasta la revisión visual.
      */
     mark: 'LL',
-    tagline: 'Find and track your games and anime',
   },
   nav: {
     home: 'Home',
@@ -39,6 +38,8 @@ export const en = {
     /** Primer string con interpolación: se declara como función tipada. */
     pageOf: (page: number, totalPages: number) =>
       `Page ${page} of ${totalPages}`,
+    /** Landmark de navegación de la paginación (hallazgo #32). */
+    pagination: 'Pagination',
     readMore: 'Read more',
     readLess: 'Read less',
   },
@@ -72,6 +73,10 @@ export const en = {
       "The page couldn't finish loading. Reloading usually fixes it; if it keeps happening, the rest of the app still works.",
     crashDetails: 'Technical details',
     reload: 'Reload page',
+    /** La sesión no se pudo verificar por un fallo que no es un 401 (4.4). */
+    sessionErrorTitle: "We couldn't verify your session",
+    sessionErrorBody:
+      "Something went wrong on our side while checking it, so we can't tell whether you're signed in. Try again in a moment.",
   },
   offline: {
     title: "You're offline",
@@ -83,6 +88,20 @@ export const en = {
     videos: 'Videos',
   },
   catalog: {
+    /**
+     * Encabezados para lectores de pantalla (tarea 4.3). El catálogo no tenía
+     * ningún `h1` y sus tarjetas (`h3`) quedaban huérfanas; búsqueda saltaba de
+     * `h1` a `h3`. Van en `sr-only` para no alterar el layout del doc 06.
+     */
+    pageHeading: 'Catalog',
+    /** Aviso de rango de años al revés (hallazgo #35). */
+    yearRangeInverted: 'The "from" year is after the "to" year.',
+    /** Salida del callejón sin salida de `?page=` fuera de rango (#26). */
+    pageOutOfRangeTitle: 'Nothing on this page',
+    pageOutOfRangeBody:
+      'This page is past the end of the results. The catalog itself is not empty.',
+    backToFirstPage: 'Go to first page',
+    resultsHeading: 'Results',
     filtersLabel: 'Filters',
     allTypes: 'All',
     videoType: 'Video type',
@@ -221,7 +240,6 @@ export const en = {
       startedAtLabel: 'Started',
       finishedAtLabel: 'Finished',
       save: 'Save',
-      saving: 'Saving…',
       cancel: 'Cancel',
       metaError: 'Could not save the changes. Try again.',
     },
@@ -240,6 +258,13 @@ export const en = {
       syncedCopy: 'Create synced copy',
       syncedCopyHint: 'Episode progress stays in sync between both copies.',
       targetLabel: 'List',
+      /**
+       * El content no tiene ningún nombre alternativo, así que no hay nada que
+       * elegir y el flujo no puede completarse (hallazgo #25). Se explica en
+       * vez de dejar un botón que no hace nada.
+       */
+      displayNameMissing:
+        'This title has no selectable names, so it cannot be added yet.',
       targetRequired: 'Pick a list first',
       displayNameLabel: 'Show as',
       franchiseNameLabel: 'Franchise name',

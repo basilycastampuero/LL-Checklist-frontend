@@ -61,13 +61,19 @@ describe('SearchPage', () => {
     ).toBeInTheDocument()
 
     // Hay dos: el del FilterBar (siempre montado, ver CatalogPage.test.tsx) y
-    // el de la acción del EmptyState. Cualquiera de los dos limpia todo,
-    // volviendo (también) el `q` a vacío.
+    // el de la acción del EmptyState.
     const clearButtons = screen.getAllByRole('button', { name: t.common.clearFilters })
     expect(clearButtons).toHaveLength(2)
     await user.click(clearButtons[0]!)
 
-    expect(await screen.findByText(t.search.promptTitle)).toBeInTheDocument()
+    // Este test afirmaba lo contrario —que se caía al estado "Search the
+    // catalog"— y eso era el hallazgo #27: limpiar los filtros se llevaba
+    // también el `q`, así que el usuario perdía el término que había escrito.
+    // El contrato nuevo: en `/search`, limpiar filtros **preserva** `q`.
+    expect(
+      await screen.findByText(t.search.noResultsBody('zzznoexiste')),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(t.search.promptTitle)).not.toBeInTheDocument()
   })
 
   it('pinta el ErrorState si la petición falla', async () => {

@@ -25,14 +25,26 @@ describe('EpisodeStepper', () => {
     expect(onChange).toHaveBeenCalledWith(4)
   })
 
-  it('no baja de cero', () => {
-    const { minus } = renderStepper({ value: 0 })
-    expect(minus).toBeDisabled()
+  // Los dos afirmaban `toBeDisabled()`. Cambió por el hallazgo #24: el
+  // navegador devuelve el foco al `<body>` cuando el elemento enfocado pasa a
+  // `disabled`, así que quien navega por teclado perdía su lugar justo al
+  // llegar al piso o al tope. Ahora el control sigue enfocable, lo comunica
+  // con `aria-disabled`, y lo que importa —que el click no haga nada— se
+  // afirma directamente.
+  it('no baja de cero: avisa por aria-disabled y el click es un no-op', () => {
+    const { onChange, minus } = renderStepper({ value: 0 })
+    expect(minus).toHaveAttribute('aria-disabled', 'true')
+    expect(minus).not.toBeDisabled()
+    fireEvent.click(minus)
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('no pasa del total cuando el total se conoce', () => {
-    const { plus } = renderStepper({ value: 12, max: 12 })
-    expect(plus).toBeDisabled()
+  it('no pasa del total: avisa por aria-disabled y el click es un no-op', () => {
+    const { onChange, plus } = renderStepper({ value: 12, max: 12 })
+    expect(plus).toHaveAttribute('aria-disabled', 'true')
+    expect(plus).not.toBeDisabled()
+    fireEvent.click(plus)
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('con total desconocido (max 0, en emisión) no hay tope', () => {

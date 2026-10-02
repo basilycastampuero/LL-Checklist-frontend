@@ -514,7 +514,10 @@ detectados durante B4/B5 y quedan igual de trazables por número/nombre:
   decisión ya cerrada (ADR-014), no de una implementación a medias; el admin
   no consume esta API hoy. Apareció primero en B3, se reconfirmó en B4.
 - **Sin verificación con lectores de pantalla reales** (arrastrada desde la
-  sección de verificación original del sprint).
+  sección de verificación original del sprint). **[Actualización
+  2026-09-30]** desde la tarea 4.3 hay una auditoría *automatizada* de reglas
+  medibles (ver [17-sprint4-avance.md](./17-sprint4-avance.md)); la prueba con
+  un lector real (NVDA/VoiceOver) **sigue pendiente**.
 - **Nada pasó por CI**: la rama `sprint-2-catalogo` va muy por delante de
   `origin/main` con todo el Sprint 3a adentro pese al nombre, y la CI solo
   corre en `main`/`develop`. **Dejó de ser así el 2026-09-09** — ver la

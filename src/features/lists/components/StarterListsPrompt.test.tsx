@@ -57,15 +57,36 @@ describe('StarterListsPrompt', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   }, 8000)
 
-  it('si la creación falla, muestra el mensaje de error del ApiError en vez del genérico', async () => {
+  // Este test afirmaba lo contrario —que se mostraba el `message` crudo del
+  // `ApiError`— y eso era el hallazgo #22: `normalizeError` pone ahí el mensaje
+  // de axios cuando la respuesta no trae el envelope del contrato, así que el
+  // usuario leía "Request failed with status code 500". El contrato nuevo:
+  // solo VALIDATION y ALREADY_LINKED traen texto para el usuario.
+  it('si la creación falla con INTERNAL, muestra el fallback y no el mensaje técnico', async () => {
     vi.spyOn(listsService, 'createChecklist').mockRejectedValue(
-      new ApiError('INTERNAL', 'Injected failure', 500),
+      new ApiError('INTERNAL', 'Request failed with status code 500', 500),
     )
     const user = userEvent.setup()
     renderPrompt()
 
     await user.click(screen.getByRole('button', { name: t.lists.starterListsPrompt.cta }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Injected failure')
+    const alerta = await screen.findByRole('alert')
+    expect(alerta).toHaveTextContent(t.lists.starterListsPrompt.errorFallback)
+    expect(alerta.textContent).not.toContain('status code 500')
+  })
+
+  it('un VALIDATION sí propaga el mensaje del backend, que está redactado para el usuario', async () => {
+    vi.spyOn(listsService, 'createChecklist').mockRejectedValue(
+      new ApiError('VALIDATION', 'That name is already taken', 422),
+    )
+    const user = userEvent.setup()
+    renderPrompt()
+
+    await user.click(screen.getByRole('button', { name: t.lists.starterListsPrompt.cta }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That name is already taken',
+    )
   })
 })

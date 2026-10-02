@@ -77,9 +77,23 @@ export function useCatalogFilters() {
     [filters, setSearchParams],
   )
 
+  /**
+   * Limpia los filtros. `keep` existe por el hallazgo #27: en `/search`,
+   * vaciar **todos** los params se llevaba también el `q`, así que el usuario
+   * que tocaba "Clear filters" para ver los resultados de su término sin
+   * filtros perdía el término y volvía al estado "Search the catalog". Pidió
+   * soltar los filtros, no la búsqueda.
+   */
   const clearFilters = useCallback(
-    () => setSearchParams(new URLSearchParams()),
-    [setSearchParams],
+    (keep: readonly string[] = []) => {
+      const next = new URLSearchParams()
+      for (const clave of keep) {
+        const valor = searchParams.get(clave)
+        if (valor != null) next.set(clave, valor)
+      }
+      setSearchParams(next)
+    },
+    [searchParams, setSearchParams],
   )
 
   return { filters, setFilters, clearFilters }
