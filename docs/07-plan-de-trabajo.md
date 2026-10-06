@@ -302,9 +302,15 @@ path.
 > de ruta con las View Transitions nativas y no con `motion` (**ADR-026**,
 > desvío deliberado del doc 06), stagger de grids con tope de 400 ms, animación
 > de entrada del árbol y `prefers-reduced-motion` medido en Chromium por CDP;
-> revisión visual a 1440 y 360 px en claro y oscuro. **Falta medir Lighthouse en
-> producción tras el merge** (único juez de si el stagger toca el >= 90 de
-> 4.5). Detalle en [17-sprint4-avance.md](./17-sprint4-avance.md).
+> revisión visual a 1440 y 360 px en claro y oscuro. **Mergeada en el PR #13**
+> (2026-10-06). **La medición de Lighthouse en producción se intentó y quedó sin
+> resultado válido**: la máquina estaba 2,4 veces más lenta que cuando se tomó la
+> línea base (`benchmarkIndex` 3600 → 1500) y no se recuperó al dejarla ociosa,
+> así que la comparación no se puede rehacer. El efecto de 4.2 sobre el criterio
+> de 4.5 queda **sin verificar**, ni cumplido ni roto. La única evidencia válida
+> es una bisección local: las animaciones cuestan ~30 ms de TBT, no los 420 que
+> aparentaba la medición inválida. Detalle en
+> [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
 > Resto del sprint sin empezar.
 
