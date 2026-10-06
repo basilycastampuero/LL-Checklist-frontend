@@ -1098,16 +1098,60 @@ está desplegado), y nada pasó por CI (rama sin pushear).
 
 ### Trampa de herramienta: Lighthouse en WSL ensucia el repo
 
-Correr Lighthouse en WSL escribe directorios temporales **dentro del repo**:
-aparecieron tres `C:\Users\USUARIO\AppData\Local\lighthouse.XXXXX/` en la raíz
-del proyecto, porque toma el `TMP` de Windows. Hubo que borrarlos a mano. Se
-evita con `TMPDIR=/tmp`. Es la tercera trampa de medición de este sprint,
-junto a la del parser `oklch` (4.3) y la de `--virtual-time-budget` (4.7a).
+Correr Lighthouse en WSL escribe un directorio basura **en el cwd**, con nombre
+literal `C:\Users\USUARIO\AppData\Local\lighthouse.XXXXX`. Aparecieron tres en
+la raíz del proyecto y hubo que borrarlos a mano.
+
+**La primera versión de esta nota decía que se evitaba con `TMPDIR=/tmp`, y era
+falsa.** Se escribió sin probarla; al correr las tres mediciones de producción
+con esa variable puesta, el repo se volvió a ensuciar igual. La causa real está
+en `makeTmpDir` de `chrome-launcher/dist/utils.js`:
+
+```js
+case 'wsl':
+    process.env.TEMP = getWSLLocalAppDataPath(`${process.env.PATH}`);
+case 'win32':
+    return makeWin32TmpDir();   // lee process.env.TEMP
+```
+
+Detecta WSL, **se sobrescribe él mismo `process.env.TEMP`** derivándolo por
+regex del `$PATH` —que en esta máquina tiene rutas de Windows—, y cae sin
+`break` a la rama de `win32`. `TMPDIR` no se consulta nunca en ese camino, así
+que ponerlo no cambia nada. Y como el valor que arma no es una ruta POSIX
+absoluta, `mkdtempSync` lo crea **relativo al cwd**, de ahí el nombre con
+backslashes dentro del repo.
+
+**Lo que sí funciona, comprobado:** correr Lighthouse desde un directorio fuera
+del repo, con `--output-path` absoluto. Verificado — el repo queda limpio y el
+directorio basura aparece en ese otro cwd.
+
+Es la tercera trampa de medición de este sprint, junto a la del parser `oklch`
+(4.3) y la de `--virtual-time-budget` (4.7a). Y el remedio falso que tuvo esta
+nota es la segunda vez en el sprint que se escribe un arreglo sin probarlo: la
+primera fue el truco de las dos pasadas con `--user-data-dir` en 4.7a.
 
 ### Lo que queda pendiente de 4.5
 
-- **Volver a medir Lighthouse en producción después de desplegar este
-  cambio.** Es el criterio real; si cae por debajo de 90, se revierte.
+- ~~Volver a medir Lighthouse en producción después de desplegar este
+  cambio.~~ **Hecho (2026-10-06), tras el merge del PR #10.** Tres corridas
+  contra `https://ll-checklist-frontend.vercel.app/catalog`: performance **90,
+  93, 93** (mediana 93) y accessibility **100** en las tres. El criterio se
+  cumple y **el cambio del bootstrap NO se revierte**. La auditoría
+  `label-content-name-mismatch` quedó no aplicable en las tres corridas, lo que
+  confirma el arreglo del `aria-label` sobre el deploy real.
+
+  El dato que vale guardar de esta medición es la **dispersión: 3 puntos de
+  rango (90–93) entre corridas del mismo build**, mayor que la diferencia que se
+  intentaba medir a la mañana (92 contra 93). Eso confirma en retrospectiva que
+  el A/B local de más arriba —81 contra 80, FCP +268 ms— no medía ninguna señal.
+  Y la primera de estas tres corridas dio justo 90: quedarse en ella habría
+  llevado a concluir que el cambio costó dos puntos. **Una sola corrida de
+  Lighthouse no sirve para comparar dos builds.**
+
+  Métricas, antes (una corrida) contra la mediana de después: FCP 2305 → 1895 ms,
+  Speed Index 4020 → 2446 ms, LCP 2713 → 2945 ms, TBT 27 → 36 ms. No se
+  atribuyen al cambio: el "antes" también es una sola corrida y cae dentro del
+  mismo ruido.
 - La oportunidad de `unused-javascript` (600 ms / 98 KB), concentrada en el
   bundle de entrada y `PageWrapper`, no en MSW.
 - Si se quiere zanjar el efecto del cambio en performance, varias corridas de
