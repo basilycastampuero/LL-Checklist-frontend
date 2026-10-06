@@ -4,7 +4,9 @@
 > Cuerpo y primeras secciones escritos el 2026-09-24 (4.13, mergeada en el PR
 > #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
 > 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
-> auditoría cerrados (2026-10-01). 3.3b y B9 (deuda del
+> auditoría cerrados (2026-10-01); 4.7a (deploy de la demo mock) cerrada y
+> mergeada (2026-10-02); 4.5 (performance) en curso con criterio cumplido
+> pendiente de re-medición (2026-10-06). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -813,3 +815,300 @@ archivos** (338 al cerrar F1 y F2). **No se verificó en el navegador ni
 contra el Odoo real**: #28 y #33 siguen con su experimento sin correr y la
 prueba con lector de pantalla real sigue siendo deuda. Nada está commiteado
 ni pasó por CI.
+
+## Actualización (2026-10-02) — Tarea 4.7a: deploy de la demo en modo mock
+
+Trabajo iniciado el 2026-10-01, mergeado el 2026-10-02. **4.7 queda parcial**:
+4.7a (publicar la demo sin backend) hecha; 4.7b (rewrites al Odoo real)
+bloqueada. Rama `sprint4/deploy-vercel`, commit `92842ad`
+(`chore(deploy): config de Vercel con rewrite de SPA y modo mock (4.7a)`),
+**PR #9** mergeado el 2026-10-02 (merge commit `5013255`), CI `verify` en verde.
+URL: `https://ll-checklist-frontend.vercel.app`.
+
+### Qué se hizo
+
+Preset **Vite** en Vercel, Root Directory en la raíz del repo (la raíz del repo
+*es* el proyecto frontend). Dos archivos:
+
+- **`vercel.json`** (nuevo, raíz del repo):
+  - `build.env.VITE_API_MODE = "mock"`. El default de producción es `real`
+    (ADR-004, `src/lib/env.ts`): sin esto la demo le pegaría a un Odoo
+    inexistente, y el fallo no sería ruidoso sino una demo que levanta "bien"
+    y muestra estados de error en todas las pantallas. Va en el archivo para
+    quedar versionado. **Además** se seteó la misma variable como Environment
+    Variable en el panel de Vercel, a propósito redundante: `build.env` es una
+    clave vieja de Vercel y no hay certeza de que la respete en proyectos
+    nuevos. Mismo criterio que la doble guarda del `?mockError=` en
+    `lib/http.ts`: cuando el fallo es silencioso, no se depende de un solo
+    guardarraíl.
+  - `rewrites: [{ source: "/(.*)", destination: "/index.html" }]`, el fallback
+    de SPA. Vercel sirve primero los archivos reales y aplica el rewrite solo a
+    lo que no matchea, así que el catch-all no se come `/assets/*` ni el
+    service worker.
+  - `headers` para `/mockServiceWorker.js`: `Cache-Control: no-cache, no-store,
+    must-revalidate` y `Service-Worker-Allowed: /`. Un service worker cacheado
+    deja sirviendo la versión vieja sin explicación.
+  - `buildCommand: "npm run build"` en vez del `vite build` del preset: es
+    `tsc -b && vite build`, así que un error de tipos rompe el deploy en vez
+    de publicarse.
+- **`package.json`**: `engines.node = "22.x"`, el mismo Node que la CI. Sin
+  esto el deploy corre el default del host y la protección de tener la CI un
+  escalón por debajo de la máquina de desarrollo deja de cubrir el deploy.
+  Consecuencia conocida y aceptada: en la máquina local (Node 24)
+  `npm install` imprime `npm warn EBADENGINE`. Es warning, no error.
+
+### Verificación
+
+**Local, antes del deploy:** `npm run typecheck` limpio, `npm run lint` limpio,
+**342/342 tests en 60 archivos**. Build en modo mock servido con `vite preview`
+y abierto con el Chromium propio de Playwright: MSW arrancó e **interceptó 5
+requests**, `rootChars=40178`, `h1=Catalog`, **10 tarjetas renderizadas**,
+service worker registrado y controlando la página.
+
+Por qué hace falta el rewrite, demostrado y no asumido: con `dist/` servido por
+un servidor estático tonto (`python3 -m http.server`), `/` da **200** y
+`/catalog` da **404**.
+
+**Producción, con curl:**
+
+- `/`, `/catalog`, `/search`, `/my-lists`, `/login`, `/settings`: todas **200**
+  sirviendo `index.html` (1047 bytes, `<title>LL Checklist</title>`,
+  `id="root"`).
+- `/ruta-inventada`: **200** con `index.html`; entra al router y muestra la
+  **404 propia de la app** (la de 4.4), no la de Vercel.
+- `/assets/index-bF4rlSAt.js`: 200 `application/javascript` (los archivos
+  reales no se reescriben). `/mock-images/avatar-1.svg`: 200 `image/svg+xml`.
+- `/mockServiceWorker.js`: 200 con los dos headers pedidos, aplicados tal cual.
+- Modo del build confirmado leyendo el chunk `assets/env-DwAsEuae.js` del
+  deploy: `apiMode:'mock'`. Ese chunk es **byte-idéntico** al del build local
+  ya verificado, igual que `index-bF4rlSAt.js` y el chunk de MSW
+  `browser-ntP6V3Ge.js`.
+
+**Render en producción, confirmado (2026-10-02).** No quedó apoyado en el
+argumento de los bytes idénticos: se leyó el DOM del deploy por CDP, con tiempo
+real. `rootChars=40178` (el mismo número que el build local), `<title>LL
+Checklist</title>`, `h1="Catalog"` y `h2="Results"` —los encabezados `sr-only`
+que agregó 4.3—, **10 tarjetas** y 11 imágenes con títulos reales del catálogo
+mockeado (Attack on Titan, Cyberpunk: Edgerunners, Demon Slayer, Fullmetal
+Alchemist, Hollow Knight), `navigator.serviceWorker.controller` presente y
+ningún `role="alert"` en pantalla.
+
+### Dos tropiezos
+
+**1. El primer deploy daba el 404 de Vercel en toda ruta profunda porque
+`vercel.json` nunca llegó al repo.** Se había dejado sin trackear a propósito
+(para no trabar un `checkout` durante el merge del PR #8) y Vercel construyó un
+árbol sin ese archivo. El síntoma era idéntico a "el rewrite no funciona".
+
+**2. Una pantalla en blanco diagnosticada que no existía.** Al verificar el
+build local con Chromium headless usando `--virtual-time-budget`, el `root`
+quedaba vacío y se concluyó que el build en modo mock estaba roto. Eran dos
+errores encadenados:
+
+- **`--virtual-time-budget` bloquea el registro de service workers.**
+  Comprobado con un `navigator.serviceWorker.register()` directo: ni resuelve
+  ni rechaza. En modo mock `main.tsx` hace `await enableMocking()` antes del
+  `createRoot`, así que la página queda en blanco para siempre; y como ese
+  `.then()` no tiene `.catch()`, el fallo es totalmente silencioso.
+- **El "control" que parecía confirmarlo era inválido**: el dev server sí
+  renderizaba, pero porque el `.env.local` de la máquina tiene
+  `VITE_API_MODE=real`, así que ahí MSW nunca arrancó. Se comparaban dos cosas
+  distintas.
+
+Cómo verificar de verdad, ya probado. Sin virtual time no se puede usar
+`--dump-dom`, así que hay dos caminos: para una página **propia**, inyectarle
+una sonda que mande los datos afuera con un beacon (`new Image().src` a un
+servidor local); para una página **ajena o ya desplegada**, que no se puede
+instrumentar, **CDP con tiempo real** — lanzar Chromium con
+`--remote-debugging-port`, leer el target de `http://127.0.0.1:9222/json` y
+hablarle con el `WebSocket` nativo de Node (`Page.navigate`, esperar de verdad,
+`Runtime.evaluate`), sin instalar ninguna dependencia. Fue así como se confirmó
+el render de producción.
+
+**Lo que NO funciona, comprobado:** precargar el service worker con un
+`--user-data-dir` reutilizado y después correr `--dump-dom` con virtual time.
+Se intentó y el proceso se cuelga igual, incluso con el SW ya activo — el
+virtual time bloquea algo más que el registro.
+
+Esta trampa **se parece a la del parser `oklch`** (4.3): una herramienta de
+medición que produce un resultado falso y convincente. En los dos casos el
+resultado se descartó entero.
+
+### Lo que queda (4.7b) y notas hacia adelante
+
+- **4.7b bloqueada:** los rewrites de `/api` y `/web/image` al Odoo real
+  (ADR-005). Según [08-preguntas-backend.md](../docs-backend/08-preguntas-backend.md)
+  §3, el Odoo de Chano va a vivir **self-hosted en Railway** y **no va a haber
+  staging remoto** (prefiere que se instale Odoo localmente). Sin URL pública
+  de Railway no hay a dónde proxear.
+- **Para cuando se haga 4.7b:** Vercel aplica los `rewrites` en orden. El
+  catch-all actual se come todo, así que las reglas de `/api` y `/web/image`
+  tienen que ir **antes** o nunca se alcanzan.
+- **Para 4.5 (performance):** en modo mock el chunk de MSW son **443,67 kB
+  (164,21 kB gzip)** y se **esperan antes de montar React**
+  (`await enableMocking()` en `main.tsx`). Va a pesar en el criterio de 4.5
+  (Lighthouse >= 90 perf en `/catalog`).
+- **Detalle cosmético sin consecuencia:** `/mock-images/` (directorio pelado)
+  devuelve `index.html` por el catch-all. Nada pide un directorio.
+- **Decisión abierta (del dueño, no hallazgo):** el proyecto en Vercel quedó
+  bajo el scope `woo-ka`, la cuenta **secundaria** de GitHub, mientras el repo
+  está en la **principal** (`basilycastampuero/LL-Checklist-frontend`). Si la
+  URL va al README como pieza de portafolio (4.8), probablemente conviene que
+  esté del lado de la cuenta con la que muestra su trabajo. Moverla implica
+  recrear el proyecto en Vercel y cambiar la URL: es más barato decidirlo antes
+  de 4.8.
+
+## Actualización (2026-10-06) — Tarea 4.5 (performance): el criterio ya se cumplía, la hipótesis era falsa
+
+Rama `sprint4/4.5-y-cierre-4.7a`, commit `1bbe44c`, **sin pushear ni mergear**.
+**4.5 NO está cerrada.** El criterio de aceptación (Lighthouse >= 90 perf/a11y
+en `/catalog`) se cumple en producción **con el código anterior a este
+cambio**; falta volver a medir producción después de desplegarlo. Si esa
+medición cae por debajo de 90, el cambio se revierte.
+
+### El hallazgo que da vuelta la tarea
+
+Lighthouse real (v12, throttling por defecto: Slow 4G simulado) contra la demo
+pública `https://ll-checklist-frontend.vercel.app/catalog`, **antes de tocar
+una línea de código**:
+
+- **performance 92**, **accessibility 100**. El criterio pide >= 90 en las
+  dos: **ya pasaba**.
+- FCP 2,3 s (score 74), LCP 2,7 s (85), Total Blocking Time 30 ms (100), CLS
+  0,001 (100), Speed Index 4,0 s (80).
+- Ninguna de las cosas que el plan lista para 4.5 (`React.lazy` de modales
+  pesados, memo en grids, bundle analyze) hizo falta para cumplir el criterio.
+- Desglose del LCP en producción: TTFB 763 ms, **Load Delay 1808 ms**, Load
+  Time 125 ms, Render Delay 16 ms.
+
+Oportunidad que sí queda abierta: **`unused-javascript`, 600 ms y 98 KB de
+ahorro potencial**:
+
+| Chunk | Tamaño | Sin usar |
+|---|---|---|
+| `index-*.js` | 112 KB | 50 KB (45%) |
+| `PageWrapper-*.js` | 49 KB | 23 KB (48%) |
+| `browser-*.js` (MSW) | 96 KB | 24 KB (25%) |
+
+**El chunk de MSW es el mejor aprovechado de los tres**, lo que contradice la
+hipótesis con la que arrancó la tarea.
+
+### La hipótesis que se cayó (resultado negativo)
+
+La tarea arrancó con una idea **equivocada**: que MSW estaba en el camino
+crítico porque `main.tsx` hacía `await enableMocking()` antes del
+`createRoot`, y que eso explicaba los 1808 ms de Load Delay del LCP (la nota
+"Para 4.5" de la sección de 4.7a de este documento partía de esa suposición).
+
+**Medición previa**, CDP en localhost **sin throttling**, build en modo mock
+contra build en modo real servidos igual: FCP 200 ms vs 100 ms, JS transferido
+358 KB vs 255 KB, chunk de MSW 159 KB transferidos. Es decir, MSW costaba 100
+ms de FCP y 103 KB en el mejor de los casos; ya ahí el número era más chico de
+lo supuesto.
+
+Se hizo el cambio igual (ver abajo) y se midió A/B con Lighthouse **local,
+mismas condiciones, build viejo contra build nuevo**:
+
+| | viejo | nuevo |
+|---|---|---|
+| performance | 81 | 80 |
+| FCP | 2,9 s | 3,1 s (+268 ms) |
+| LCP | 4,2 s | 4,1 s (−36 ms) |
+| Speed Index | 2,9 s | 3,1 s (+268 ms) |
+| Total Blocking Time | 30 ms | 40 ms |
+| LCP Load Delay | 3500 ms | 3426 ms (−74 ms) |
+
+**Conclusión: no hubo mejora de performance atribuible al cambio.** El Load
+Delay queda en ~3,4 s en los dos builds, así que el `await` no era su causa.
+Y una sola corrida de Lighthouse es demasiado ruidosa para afirmar ni mejora
+ni empeoramiento: 1 punto de diferencia y ±270 ms de FCP están dentro de la
+varianza. Para zanjar si el cambio ayuda o perjudica harían falta **varias
+corridas por build**, no una.
+
+Dos cosas más que la medición dejó claras:
+
+- **Lighthouse local no es comparable con producción**: 81 local contra 92 en
+  producción sobre el mismo código, por el TTFB y el throttling simulado. Para
+  juzgar el criterio hay que medir producción.
+- La causa del Load Delay de ~1,8 s (producción) / ~3,4 s (local) **sigue sin
+  identificarse**. Queda como pregunta abierta, no como hallazgo.
+
+### El cambio que se mantuvo: por robustez, NO por performance
+
+- **`src/lib/mswGate.ts`** (nuevo): una compuerta que **falla abierta**.
+  Arranca abierta y solo se cierra si alguien la cierra. Un contexto que no
+  arranca MSW —los tests, que usan el server de Node y no el worker del
+  navegador— no espera nada y no hay que acordarse de abrirla desde ningún
+  `setup`. Al revés, olvidarse de abrirla colgaría todas las requests.
+- **`src/main.tsx`**: React monta de entrada; MSW arranca en paralelo. El
+  `.finally` que abre la compuerta corre también en el camino de error, a
+  propósito.
+- **`src/lib/http.ts`**: el interceptor de request (el mismo que traduce
+  `?mockError=`) espera `mocksReady()` antes de cada request. Es la única
+  espera a MSW que queda en la app.
+
+**Lo que esto sí arregla, y es real:** antes, si MSW no arrancaba, el
+`enableMocking().then(...)` sin `.catch()` no corría nunca y la app quedaba en
+**pantalla blanca sin un error en ninguna parte**. Ese modo de falla no es
+teórico: mordió durante 4.7a y costó un diagnóstico entero (ver "Dos
+tropiezos" más arriba). Ahora las requests salen, fallan, y la app muestra los
+estados de error que ya tiene. En una demo pública, una pantalla blanca muda es
+el peor resultado posible.
+
+### El bug de accesibilidad que Lighthouse encontró y 4.3 no
+
+`src/features/catalog/components/MultiSelectFilter.tsx` tenía
+`aria-label={label}` en un botón cuyo texto visible era
+`{label}: {triggerText}`. Mostraba **"Genres: All genres"** (o "Genres: 2
+selected") y su nombre accesible era solo **"Genres"**.
+
+- **`aria-label` no complementa el texto visible, lo reemplaza.** El botón ya
+  tenía un nombre accesible correcto en su propio texto y el atributo lo
+  pisaba, tirando justo la parte útil: el estado del filtro. Un lector de
+  pantalla no se enteraba de cuántos filtros había activos; alguien que navega
+  por voz decía lo que veía y el comando no matcheaba.
+- **El arreglo es borrar el atributo, no cambiarlo.** Afecta dos controles:
+  Genres y Platforms.
+- **Verificado de forma independiente de Lighthouse**, leyendo el nombre
+  accesible computado por Chrome vía CDP (`Accessibility.getPartialAXTree`):
+  ahora los dos triggers dan "Genres: All genres" y "Platforms: All
+  platforms", con origen `contents`, coincidiendo con el texto visible.
+- **Contraste que vale como lección:** el trigger del menú del avatar
+  **conserva** su `aria-label` ("Account menu for Alex Rivera") y está bien,
+  porque no tiene texto visible. La regla no es "`aria-label` es malo", es
+  "solo sirve cuando no hay texto visible que usar".
+- **Por qué 4.3 no lo detectó:** ese barrido verificó que los controles
+  **tuvieran** nombre accesible, no que **coincidiera** con el texto visible.
+  Son dos reglas distintas. **Límite conocido del barrido de 4.3.**
+- Lighthouse le da **peso 0** a esta auditoría en la categoría, por eso
+  accessibility marcaba 100 **con la auditoría fallando**. Un 100 de
+  accessibility no significa que no haya nada que arreglar.
+
+### Verificación
+
+`npm run typecheck` limpio, `npm run lint` limpio, **345/345 tests en 61
+archivos** (antes 342 en 60). Tres tests nuevos en `src/lib/mswGate.test.ts`;
+del que importa se comprobó que **falla sin su arreglo** (`expected [ Array(1)
+] to deeply equal []`). Ese test incluye un `finally` que reabre la compuerta:
+si una aserción fallara con la compuerta cerrada colgaría el resto de la
+suite.
+
+**No verificado:** el efecto del cambio sobre performance en producción (no
+está desplegado), y nada pasó por CI (rama sin pushear).
+
+### Trampa de herramienta: Lighthouse en WSL ensucia el repo
+
+Correr Lighthouse en WSL escribe directorios temporales **dentro del repo**:
+aparecieron tres `C:\Users\USUARIO\AppData\Local\lighthouse.XXXXX/` en la raíz
+del proyecto, porque toma el `TMP` de Windows. Hubo que borrarlos a mano. Se
+evita con `TMPDIR=/tmp`. Es la tercera trampa de medición de este sprint,
+junto a la del parser `oklch` (4.3) y la de `--virtual-time-budget` (4.7a).
+
+### Lo que queda pendiente de 4.5
+
+- **Volver a medir Lighthouse en producción después de desplegar este
+  cambio.** Es el criterio real; si cae por debajo de 90, se revierte.
+- La oportunidad de `unused-javascript` (600 ms / 98 KB), concentrada en el
+  bundle de entrada y `PageWrapper`, no en MSW.
+- Si se quiere zanjar el efecto del cambio en performance, varias corridas de
+  Lighthouse por build.

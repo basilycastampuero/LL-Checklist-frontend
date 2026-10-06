@@ -6,6 +6,7 @@ import {
   type ApiErrorCode,
 } from '@/types/api.types'
 import { useSessionStore } from '@/store/sessionStore'
+import { mocksReady } from '@/lib/mswGate'
 
 /** Mapea un status HTTP a un código de error del contrato (fallback INTERNAL). */
 function statusToCode(status: number): ApiErrorCode {
@@ -90,7 +91,13 @@ export function createHttpClient(): AxiosInstance {
   // Se lee en cada request y no una vez al crear el cliente: así alcanza con
   // navegar a la URL con el parámetro, sin recargar.
   if (env.apiMode === 'mock') {
-    client.interceptors.request.use((config) => {
+    client.interceptors.request.use(async (config) => {
+      // Única espera a MSW que queda en la app (tarea 4.5). React monta sin
+      // bloquearse y son las requests las que aguardan al worker, no el primer
+      // pixel. Si la compuerta está abierta —en los tests, que usan el server
+      // de Node— esto no cuesta nada. Ver `lib/mswGate.ts`.
+      await mocksReady()
+
       const code = new URLSearchParams(window.location.search).get('mockError')
       if (code) {
         config.headers.set('x-mock-error', code)
