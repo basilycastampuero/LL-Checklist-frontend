@@ -49,7 +49,17 @@ export function MultiSelectFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={label}>
+        {/* SIN `aria-label`, y es deliberado. `aria-label` no complementa el
+            texto visible: lo REEMPLAZA. Con `aria-label={label}` este botón
+            mostraba "Genres: 2 selected" y su nombre accesible era solo
+            "Genres", así que un lector de pantalla perdía justamente el estado
+            del filtro, y quien navega por voz decía lo que veía y el comando no
+            matcheaba. El texto propio del botón ya es un nombre accesible
+            correcto y además informa la selección. Lo detectó Lighthouse en 4.5
+            (`label-content-name-mismatch`); el barrido de 4.3 no lo vio porque
+            verificaba que los controles TUVIERAN nombre accesible, no que
+            COINCIDIERA con el texto visible. */}
+        <Button variant="outline" size="sm">
           {label}: {triggerText}
           <ChevronDown className="size-3.5 opacity-50" aria-hidden />
         </Button>
