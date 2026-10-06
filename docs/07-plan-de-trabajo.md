@@ -279,6 +279,11 @@ path.
 > [18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md).
 > Ninguno fue tarea numerada: salieron de la auditoría, no del plan.
 >
+> ◐ **4.7 parcial** (2026-10-02): **4.7a hecha** (config de deploy de la demo
+> en modo mock, PR #9, `vercel.json` + `engines.node`), **4.7b bloqueada**
+> (rewrites de `/api` y `/web/image` al Odoo real, sin URL pública de Railway).
+> Detalle en [17-sprint4-avance.md](./17-sprint4-avance.md).
+>
 > Resto del sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
@@ -289,7 +294,7 @@ path.
 | 4.4 | Manejo de errores global | ErrorBoundary por página, retry, 404, offline banner | Errores inyectados por MSW demostrables |
 | 4.5 | Performance | code-splitting por ruta (ya), `React.lazy` de modales pesados, memo en grids, bundle analyze | Lighthouse ≥ 90 perf/a11y en `/catalog` |
 | 4.6 | Tests | Unit (utils, adapters, schemas) + componentes críticos (stepper, wizard, filterbar) + 1 flujo integración (agregar a lista) | Coverage razonable en features core, CI verde |
-| 4.7 | Deploy | Vercel/Netlify + rewrites `/api` y `/web/image` → Odoo (ADR-005) | URL pública funcionando |
+| 4.7 | ◐ Deploy (parcial) | Vercel/Netlify + rewrites `/api` y `/web/image` → Odoo (ADR-005). **4.7a ✅** (2026-10-02, PR #9): demo en modo mock en Vercel con `vercel.json` (fallback de SPA, `VITE_API_MODE=mock`, headers del service worker) y `engines.node = 22.x`. **4.7b ⛔ bloqueada**: rewrites al Odoo real; el Odoo de Chano va a vivir self-hosted en Railway sin staging remoto ([08 §3](../docs-backend/08-preguntas-backend.md)), sin URL pública no hay a dónde proxear | URL pública funcionando (4.7a: cumplido para la demo mock; 4.7b: pendiente) |
 | 4.8 | README de portafolio | Screenshots/GIF, stack, arquitectura, link a docs, demo con cuenta seed | Redactado en inglés |
 | 4.9 | (stretch) Infinite scroll catálogo | `useInfiniteQuery` | — |
 | 4.10 | (stretch) Drag & drop en árbol/entries | dnd-kit | — |
