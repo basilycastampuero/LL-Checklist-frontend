@@ -6,7 +6,8 @@
 > 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
 > auditoría cerrados (2026-10-01); 4.7a (deploy de la demo mock) cerrada y
 > mergeada (2026-10-02); 4.5 (performance) en curso con criterio cumplido
-> pendiente de re-medición (2026-10-06). 3.3b y B9 (deuda del
+> pendiente de re-medición (2026-10-06); 4.2 (animaciones) implementada y
+verificada, sin commitear (2026-10-06). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -969,11 +970,15 @@ resultado se descartó entero.
 
 ## Actualización (2026-10-06) — Tarea 4.5 (performance): el criterio ya se cumplía, la hipótesis era falsa
 
-Rama `sprint4/4.5-y-cierre-4.7a`, commit `1bbe44c`, **sin pushear ni mergear**.
-**4.5 NO está cerrada.** El criterio de aceptación (Lighthouse >= 90 perf/a11y
-en `/catalog`) se cumple en producción **con el código anterior a este
-cambio**; falta volver a medir producción después de desplegarlo. Si esa
-medición cae por debajo de 90, el cambio se revierte.
+Rama `sprint4/4.5-y-cierre-4.7a`, commit `1bbe44c`, **mergeada en el PR #10**
+el 2026-10-06. **4.5 quedó cerrada** ese mismo día: la re-medición en
+producción, tres corridas, dio 90, 93 y 93 de performance (mediana 93) y 100 de
+accessibility, así que el criterio se cumple y el cambio no se revirtió.
+Detalle al final de esta sección.
+
+> Este párrafo decía "sin pushear ni mergear" y "4.5 NO está cerrada" durante
+> unas horas después de que dejara de ser cierto, porque el merge se registró
+> más abajo en vez de acá. Corregido el 2026-10-06.
 
 ### El hallazgo que da vuelta la tarea
 
@@ -1165,3 +1170,124 @@ primera fue el truco de las dos pasadas con `--user-data-dir` en 4.7a.
   bundle de entrada y `PageWrapper`, no en MSW.
 - Si se quiere zanjar el efecto del cambio en performance, varias corridas de
   Lighthouse por build.
+
+---
+
+## Actualización (2026-10-06) — Tarea 4.2: animaciones
+
+Código hecho y verificado, **sin commitear**. Decisión de peso en
+[ADR-026](./03-decisiones-arquitectura.md): las transiciones de ruta usan las
+View Transitions nativas y no `motion`, que es lo que dice el doc 06.
+
+### Qué se implementó
+
+**Archivos modificados:** `src/index.css`, `src/components/layout/BottomTabs.tsx`,
+`src/components/layout/Header.tsx`,
+`src/features/catalog/components/FranchiseCard.tsx`,
+`src/features/catalog/components/FranchiseCarousel.tsx`,
+`src/features/lists/components/ChecklistTreeItem.tsx`,
+`src/pages/CatalogPage.tsx`, `src/pages/SearchPage.tsx`.
+**Tests nuevos:** `src/router/viewTransition.test.tsx` y
+`src/features/catalog/components/FranchiseCard.reducedMotion.test.tsx`.
+
+1. **Transición de ruta.** `viewTransition` en los `NavLink` de `BottomTabs` y
+   del `Header` (Catalog, My Lists) y en el `Link` de la card al detalle. Solo
+   entra la página nueva (fade más 8 px, 180 ms) sobre la vieja quieta, para
+   evitar el "dip" de brillo del cross-fade por defecto. Header y bottom tabs
+   llevan `view-transition-name` propio para no fadear con el contenido. Los
+   demás `Link` quedaron sin `viewTransition`, a propósito.
+2. **Stagger de grids** (catálogo, búsqueda y el carrusel de home), con
+   `motion`.
+3. **Árbol de listas:** animación de entrada (altura y opacidad, 180 ms) en el
+   `<ul role="group">`.
+4. **`prefers-reduced-motion`, las dos mitades:** la CSS (transiciones,
+   animaciones y View Transitions) y la JS (`useReducedMotion()` dentro de
+   `FranchiseCard` y `ChecklistTreeItem`).
+
+### Decisiones de diseño que van contra la letra del doc 06
+
+- **Stagger con `custom={index}` y tope de 8 posiciones** (400 ms de delay
+  máximo), no "variants a 50 ms". Con `staggerChildren` puro la card 24 habría
+  entrado 1,2 s tarde.
+- **Las cards entran desde `opacity: 0.6`, no desde 0.** Chrome no cuenta como
+  pintado un elemento totalmente transparente: un fade desde cero habría
+  retrasado el LCP el delay entero del stagger.
+- **El árbol solo anima al expandir, no al colapsar.** Animar la salida exige
+  `AnimatePresence`, que dejaría el `<ul>` y sus hijos en el DOM unos 150 ms
+  después de que `aria-expanded` ya diga `false`, desincronizando el árbol
+  accesible del recorrido por teclado. **Ganó la semántica ARIA.** Por la misma
+  razón no se animó `layout` en los hermanos: aplicaría transforms a `<li>` con
+  roving tabindex y foco. El `overflow` vuelve a `visible` al terminar, para no
+  recortar el anillo de foco.
+- **En CSS, reduced motion pone las duraciones en `0.01ms`, no en `none`**, a
+  propósito: Radix espera `transitionend`/`animationend` para desmontar los
+  diálogos de shadcn, y con `none` podrían no desmontarse. Las View Transitions
+  son pseudo-elementos que el selector `*` no alcanza, así que llevan su propia
+  regla.
+- **El corolario de ADR-026:** nada de `<MotionConfig reducedMotion="user">` en
+  el shell; la guarda va dentro de cada componente `motion`.
+
+### Verificación
+
+- `npm run typecheck` y `npm run lint` limpios. Suite: **354 tests en 63
+  archivos** (antes 351 en 61).
+- **`prefers-reduced-motion` medido en Chromium emulando el media feature por
+  CDP**, no dado por bueno leyendo el código:
+  - Mitad CSS: la `transition-duration` de la imagen de la card pasa de `0.3s`
+    a `1e-05s`, y los elementos con transición no nula pasan de 38 (`0.15s`,
+    `0.3s`) a 400, todos en `1e-05s`.
+  - Mitad JS: muestreada **mientras la animación corre**, no al final. Sin la
+    preferencia, las cards arrancan en `opacity: 0.6` con transforms
+    escalonados (`translateY(6.7px)`, `10.1px`, `12px`). Con la preferencia,
+    `opacity: 1` y `transform: none` en todas.
+- **LCP local:** 972 ms sin la preferencia, 836 ms con ella; la animación
+  cuesta unos 136 ms.
+- **Costo de ADR-026, medido antes y después sirviendo los dos builds igual:**
+  `/catalog` 415 KB -> 416 KB de JS transferido, FCP 256 -> 184 ms, y en
+  `/login` el chunk de `motion` no se carga.
+- **Revisión visual completa** (criterio de aceptación de 4.2): capturas a 1440
+  y 360 px, en claro y oscuro; las cuatro revisadas y correctas, sin
+  desbordamiento ni roturas.
+- El `errorElement` por ruta de 4.4 sigue funcionando: lo cubre
+  `viewTransition.test.tsx`, que navega con `viewTransition` a una ruta que
+  revienta y comprueba que aparece el `ErrorPage` de esa ruta con el chrome
+  vivo.
+
+### Tres lecciones de método
+
+1. **Un `grep` sobre el bundle no distingue un `import()` dinámico de uno
+   estático.** Al verificar que `motion` no entró al camino crítico, el entry
+   *referenciaba* el chunk que lo contiene, y eso pareció una regresión. No lo
+   era: un import dinámico aparece igual en el entry, y ya pasaba antes de 4.2.
+   **Solo la medición en el navegador contesta la pregunta.**
+2. **Una verificación incompleta se parece mucho a una completa.** La primera
+   medición de reduced motion comprobó que las transiciones CSS bajaban a
+   `1e-05s` y se estuvo a punto de reportar el requisito como verificado. Pero
+   se había muestreado a los 9 segundos, cuando las animaciones de `motion` ya
+   habían terminado igual: **la mitad JS estaba sin verificar**. Lo destapó un
+   test que falló. La corrección fue muestrear mientras la animación corre.
+3. **Mockear `window.matchMedia` no sirve para probar `useReducedMotion`, y
+   produce un falso verde.** `motion` se suscribe al media query cuando se
+   carga el módulo, así que reemplazar `matchMedia` después no cambia nada: el
+   test pasaba igual con la preferencia "activada". Se reescribió mockeando el
+   hook, y se comprobó que falla si se borra la guarda (`expected '0.6' not to
+   be '0.6'`).
+
+Son tres más del mismo tipo que ya acumula el sprint: la verificación que
+parece completa y no lo es.
+
+### Lo que queda abierto
+
+- **Falta medir Lighthouse en producción después del merge.** Es el único juez
+  de si el stagger toca el >= 90 de 4.5. Local no es comparable: ya se vio 81
+  local contra 93 en producción sobre el mismo código. Si cae de 90, hay que
+  elegir entre la animación y el criterio.
+- **Dos archivos sobre el techo de ~150 líneas del Definition of Done:**
+  `FranchiseCard.tsx` en 156 y `ChecklistTreeItem.tsx` en 205 (ya estaba en
+  ~175 antes de esta tarea).
+- **Sin test:** el stagger y la animación del árbol. El árbol tampoco se probó
+  en el navegador, porque requiere sesión iniciada.
+- **Sin verificar:** el `<Suspense>` de `RootLayout` bajo las transiciones.
+- Detalle cosmético preexistente y ajeno a 4.2, visto en las capturas: el input
+  de año muestra el placeholder cortado como "From yea" en los dos anchos.
+
