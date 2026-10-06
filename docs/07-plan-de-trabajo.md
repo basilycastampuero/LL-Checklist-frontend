@@ -290,9 +290,13 @@ path.
 > del LCP) **resultó falsa**: el A/B local no mostró mejora atribuible. Se
 > mantuvo un cambio por robustez (compuerta `mswGate`, ya no hay pantalla
 > blanca muda si MSW no arranca) y se arregló un `aria-label` que pisaba el
-> texto visible en `MultiSelectFilter`. Rama `sprint4/4.5-y-cierre-4.7a`
-> (`1bbe44c`), sin pushear. **Falta re-medir producción tras desplegar**;
-> detalle en [17-sprint4-avance.md](./17-sprint4-avance.md).
+> texto visible en `MultiSelectFilter`. **Mergeado en el PR #10** (2026-10-06).
+> **Re-medido en producción tras el deploy: tres corridas dieron 90, 93 y 93 de
+> performance (mediana 93) y 100 de a11y, así que el criterio se cumple y el
+> cambio no se revierte.** La dispersión de 3 puntos entre corridas del mismo
+> build es mayor que la diferencia que se intentaba medir, lo que confirma que
+> una sola corrida no sirve para comparar builds. Detalle en
+> [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
 > Resto del sprint sin empezar.
 
@@ -302,7 +306,7 @@ path.
 | 4.2 | Animaciones | Transiciones de ruta, stagger, layout animations, reduced-motion | Revisión visual completa |
 | 4.3 | Barrido responsive + a11y | 360/768/1024/1440; teclado; contraste | Checklist en PR |
 | 4.4 | Manejo de errores global | ErrorBoundary por página, retry, 404, offline banner | Errores inyectados por MSW demostrables |
-| 4.5 | ◐ Performance (en curso) | code-splitting por ruta (ya), `React.lazy` de modales pesados, memo en grids, bundle analyze. **Nota (2026-10-06):** nada de esto hizo falta; el criterio ya pasaba (92/100 en producción). Queda abierta la oportunidad `unused-javascript` (600 ms / 98 KB) | Lighthouse ≥ 90 perf/a11y en `/catalog`. **Cumplido; pendiente de re-medición en producción tras desplegar `1bbe44c`** (si cae de 90, se revierte) |
+| 4.5 | ◐ Performance (en curso) | code-splitting por ruta (ya), `React.lazy` de modales pesados, memo en grids, bundle analyze. **Nota (2026-10-06):** nada de esto hizo falta; el criterio ya pasaba (92/100 en producción). Queda abierta la oportunidad `unused-javascript` (600 ms / 98 KB) | Lighthouse ≥ 90 perf/a11y en `/catalog`. **Cumplido y re-verificado en producción tras el PR #10** (2026-10-06): tres corridas, performance 90/93/93 (mediana 93), a11y 100 en las tres |
 | 4.6 | Tests | Unit (utils, adapters, schemas) + componentes críticos (stepper, wizard, filterbar) + 1 flujo integración (agregar a lista) | Coverage razonable en features core, CI verde |
 | 4.7 | ◐ Deploy (parcial) | Vercel/Netlify + rewrites `/api` y `/web/image` → Odoo (ADR-005). **4.7a ✅** (2026-10-02, PR #9): demo en modo mock en Vercel con `vercel.json` (fallback de SPA, `VITE_API_MODE=mock`, headers del service worker) y `engines.node = 22.x`. **4.7b ⛔ bloqueada**: rewrites al Odoo real; el Odoo de Chano va a vivir self-hosted en Railway sin staging remoto ([08 §3](../docs-backend/08-preguntas-backend.md)), sin URL pública no hay a dónde proxear | URL pública funcionando (4.7a: cumplido para la demo mock; 4.7b: pendiente) |
 | 4.8 | README de portafolio | Screenshots/GIF, stack, arquitectura, link a docs, demo con cuenta seed | Redactado en inglés |
