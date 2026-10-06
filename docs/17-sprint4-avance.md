@@ -804,9 +804,18 @@ sección 9 del doc 18:
 
 Los arreglos de marcado y accesibilidad (#28, #31, #32, #33 en parte, #36)
 quedaron cubiertos por tests existentes actualizados, no por tests nuevos.
-**#21, #22 y #30 no pueden tener test contra MSW hoy**, porque el mock no
+~~**#21, #22 y #30 no pueden tener test contra MSW hoy**, porque el mock no
 emite un `colorIndex` fuera de rango, un error sin envelope ni un
-`releaseDate` nulo: hace falta que el mock pueda emitir esas formas.
+`releaseDate` nulo: hace falta que el mock pueda emitir esas formas.~~
+
+> **Corregido el 2026-10-06: esa afirmación era falsa.** `server.use(...)`
+> emite cualquier forma y 18 archivos de test del repo ya lo usaban para eso;
+> lo que no las produce es el *seed por defecto*, que no es lo mismo. Los
+> cuatro hallazgos del grupo (#21, #22, #26 y #30) tienen test desde esa fecha,
+> sin construir ninguna infraestructura nueva. La tarea que se había propuesto
+> —inyección de formas inválidas en el mock— quedó **descartada por
+> innecesaria** y nunca llegó al doc 07. Detalle y lección en la sección 9 del
+> doc 18.
 
 ### Verificación
 

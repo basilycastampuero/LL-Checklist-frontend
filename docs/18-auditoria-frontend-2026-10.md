@@ -66,9 +66,10 @@ con que llegaron:
   estado verde (335 tests, `typecheck`/`lint` limpios) viene de la
   verificación previa del dueño del proyecto, no de esta auditoría.
 - **No se auditó qué tests faltan para cada hallazgo**, salvo notar que los
-  caminos de #21, #22, #26 y #30 **no pueden tener test hoy** porque el mock
-  nunca produce esos datos ni esas respuestas. Eso es un hallazgo sobre el
-  mock, no sobre los tests.
+  caminos de #21, #22, #26 y #30 **no podían tener test** porque el mock
+  nunca producía esos datos ni esas respuestas. **Esa afirmación era falsa para
+  los cuatro**, #26 incluido, y se corrigió el 2026-10-06 (sección 9,
+  "Corrección del 2026-10-06"). Los cuatro tienen test desde esa fecha.
 - **Un primer intento de la revisión general murió por límite de uso** y se
   relanzó con alcance recortado. Lo recortado fue lo ya cubierto, no zonas
   sin mirar.
@@ -159,9 +160,13 @@ salvo las que empiezan con `ll-odoo/`.
   `colorIndex` pasó de `z.number().min(1).max(11)` a `z.number().int()`. El
   rango 1–11 del doc 05 es una convención de paleta y no un invariante del
   backend, y `GenreBadge` ya resolvía cualquier índice fuera de rango. Regla
-  que queda: **Zod valida forma, no convenciones estéticas** (ADR-025). Sin
-  test propio: el seed de MSW solo emite 1–11 y ninguna prueba puede producir
-  el caso (sección 9).
+  que queda: **Zod valida forma, no convenciones estéticas** (ADR-025). Test
+  agregado el 2026-10-06 (`src/pages/CatalogPage.test.tsx`, `it.each` con
+  `colorIndex: 0` y `colorIndex: 12`): el catálogo renderiza las tarjetas y no
+  cae en `ErrorState`. Con el arreglo revertido los dos fallan
+  (`Unable to find role="heading" and name "Fullmetal Alchemist"`). La cobertura
+  es solo de `CatalogPage` (sección 9). La nota original decía que no se podía
+  testear; era falsa (sección 9).
 
 ### #22 — MEDIUM. Un 500 sin envelope o un corte de red muestran el texto técnico de axios
 
@@ -192,9 +197,15 @@ salvo las que empiezan con `ll-odoo/`.
   **Tres tests afirmaban el bug** (esperaban ver el `message` crudo de un
   `ApiError` de código `INTERNAL`) y se actualizaron:
   `StarterListsPrompt.test.tsx` y dos en `ChecklistNodeMenu.test.tsx`; se
-  agregó uno que afirma que un `VALIDATION` **sí** propaga su mensaje. Sin
-  test del caso original (respuesta de error sin envelope): el mock siempre
-  manda el envelope (sección 9).
+  agregó uno que afirma que un `VALIDATION` **sí** propaga su mensaje. Test
+  del caso original agregado el 2026-10-06
+  (`src/features/lists/components/ChecklistNodeMenu.test.tsx`, `it.each` con un
+  500 de HTML crudo y un 500 con `{ "detail": "boom" }`, vía renombre de
+  carpeta): el diálogo muestra exactamente `t.lists.errors.saveFailed` y no el
+  texto de axios. Con el arreglo revertido los dos fallan
+  (`expected 'Request failed with status code 500' to be 'Could not save the
+  list. Try again.'`). La nota original decía que el mock siempre manda el
+  envelope; era falsa (sección 9).
 
 ### #23 — MEDIUM. `PublicListPage` afirma "la lista es privada" ante cualquier error, y sin retry
 
@@ -278,6 +289,14 @@ salvo las que empiezan con `ll-odoo/`.
   `?page=` fuera de rango (`items` vacío, `page > 1`, `total > 0`) con mensaje
   propio y un botón "Go to first page". Antes decía "The catalog is empty",
   falso, y no quedaba ningún control para volver.
+- **Test (2026-10-06).** `src/pages/CatalogPage.test.tsx`: un `server.use` que
+  devuelve `items: []` con `page: 3` y `total: 50`. Afirma las dos mitades del
+  hallazgo por separado — que aparece el mensaje propio y **no** el "catálogo
+  vacío" que era falso, y que queda el botón para volver a la primera página.
+  Sin el arreglo falla con `Unable to find an element with the text: Nothing on
+  this page`. Este hallazgo había quedado sin test por la misma premisa falsa
+  que #21, #22 y #30 (sección 9): producir la respuesta con `server.use` no
+  tenía ninguna dificultad.
 
 ### #27 — MEDIUM. "Clear filters" en la búsqueda borra también el término buscado
 
@@ -350,8 +369,14 @@ salvo las que empiezan con `ll-odoo/`.
   `.nullable()`; `formatReleaseDate` acepta `null` y devuelve un guion. Hubo
   que guardar `yearsOf` en `derive.ts`, que hacía `new Date(v.releaseDate)` y
   con `null` habría envenenado el rango de años con un `NaN`. Misma regla que
-  #21 (ADR-025). Sin test propio: el mock no emite un `releaseDate` nulo
-  (sección 9).
+  #21 (ADR-025). Test
+  agregado el 2026-10-06 (`src/pages/FranchiseDetailPage.test.tsx`, una
+  versión con `releaseDate: null`): el detalle renderiza y la celda de fecha
+  muestra un guion. Protege dos arreglos: sin el `.nullable()` falla con
+  `Unable to find role="heading" and name "Pokémon"`, y sin el guion de
+  `formatReleaseDate` con `expected 'Jan 1, 1970' to be '—'`. `yearsOf` no
+  queda cubierta (sección 9). La nota original decía que el mock no emitía un
+  `releaseDate` nulo; era falsa (sección 9).
 
 ### #31 — LOW. `ProgressBar` emite `aria-valuenow` mayor que `aria-valuemax`
 
@@ -830,15 +855,18 @@ Para poder cerrarlas con fundamento.
 
 - **El borde con el Odoo real** (#21, #22, #23, #30, y en parte #26): el
   frontend asume datos y errores más prolijos que los que el backend emite.
-  Mientras el seed y los handlers de MSW solo produzcan el camino válido,
-  estos caminos no pueden tener test (ver "No cubrió", arriba).
+  El seed y los handlers de MSW por defecto solo producen el camino
+  válido, y eso hizo creer que estos caminos no se podían testear. No era
+  así: `server.use(...)` devuelve cualquier forma (ver "Corrección del
+  2026-10-06", sección 9).
 - **Reincidencias de lecciones ya pagadas:** callbacks a nivel de `mutate()`
   (F2, ya resuelto en `useDeleteLink`/`useSignOut` y, el 2026-10-01, en
   `useUpdateChecklist`), `scope` ausente (F3, F4;
   ya resuelto en #20), conflación de error con estado vacío (#23, ya
   resuelto para `/auth/me`), aserción de ruta por substring (F9).
 - **Falsos verdes** nombrados: F1, F2, F5, F9 y los caminos de #21/#22/#26/
-  #30 sin test posible. Al cerrar aparecieron dos más, de otra clase (tests
+  #30 dados por "sin test posible" (premisa falsa, corregida el 2026-10-06
+  en la sección 9). Al cerrar aparecieron dos más, de otra clase (tests
   que afirmaban el bug y un test nuevo que pasaba sin el arreglo): sección 9.
 - **Accesibilidad que el barrido de 4.3 no ve:** #24, #31, #33, #36. La
   prueba con lector de pantalla real sigue siendo deuda abierta.
@@ -907,10 +935,52 @@ fallara sin el arreglo; sin esa comprobación seguiría ahí.
 
 - **Marcado y accesibilidad** (#28, #31, #32, #33 en parte, #36): cubiertos
   por **tests existentes actualizados**, no por tests nuevos dedicados.
-- **#21, #22 y #30 no pueden tener test contra MSW hoy**: el mock no produce
-  un `colorIndex` fuera de rango, una respuesta de error sin el envelope del
-  contrato ni un `releaseDate` nulo. Es un hallazgo sobre el mock, no sobre
-  los tests, y queda como **trabajo pendiente**: que el mock pueda emitir
-  esas formas es lo que permitiría cubrirlos. Los arreglos de #21 y #30
-  quedan sin red de seguridad automática.
+- **#21, #22 y #30: ya tienen test (2026-10-06).** Ver "Corrección del
+  2026-10-06", abajo. Huecos residuales: `yearsOf` en
+  `src/mocks/seed/derive.ts` sin test (es el guard que evita que un
+  `releaseDate` nulo envenene el rango de años con `NaN`; no está exportada y
+  el handler de `/franchises/:id` devuelve el payload de `server.use` sin pasar
+  por `toSummary`, así que el test de #30 no la ejercita; cubrirla exige
+  exportarla o un test propio de `derive.ts`; es código del mock, no de
+  producción); #21 se testea solo en `CatalogPage` (Home, búsqueda y detalle
+  comparten el schema, pero no hay un test por página); #22 se testea solo con
+  el renombre de carpeta (`apiErrorMessage` es compartido, pero publicar,
+  borrar y crear no tienen su propio caso sin envelope).
 - **F5 y F7**: no consta un test nuevo (pendiente de confirmar).
+
+### Corrección del 2026-10-06: el impedimento era falso
+
+Las fichas de #21, #22 y #30 se cerraron el 2026-10-01 diciendo que no
+podían tener test porque *"el mock no emite esa forma"* o *"el mock siempre
+manda el envelope"*, y esta sección (y el doc 17) repitió que era un
+hallazgo sobre el mock y que hacía falta hacerlo emitir esas formas por
+inyección, en la línea del `?mockError=`. **Esa premisa nunca se verificó y
+era falsa**: `server.use(...)` puede devolver cualquier forma, y 18 archivos de
+test del repo ya lo usaban para eso. Los tests se escribieron el 2026-10-06 sin
+construir infraestructura nueva y todos fallan sin su arreglo (detalle en cada
+cierre). La tarea de inyección de fallos propuesta queda **descartada por
+innecesaria**, no hecha, y nunca llegó al doc 07.
+
+**Y el grupo era de cuatro, no de tres.** La sección 1 agrupaba también a
+**#26** (`?page=` fuera de rango) bajo la misma premisa. Al corregir las otras
+tres quedó sin reverificar, se comprobó después que tampoco tenía test, y
+resultó igual de trivial: un `server.use` con `items: []`, `page: 3` y
+`total: 50`. Que un hallazgo se escape de su propia corrección es el segundo
+costo de la premisa falsa: el grupo se trató como una lista cerrada cuando
+nadie había verificado a ninguno de sus miembros.
+
+Se deja el error a la vista porque tuvo costo: se propuso construir
+infraestructura que nunca hizo falta y durante cinco días tres arreglos
+pasaron por "sostenidos por revisión". Dato del mismo experimento: con
+el arreglo de #22 revertido fallan además dos tests preexistentes que mandan
+un 500 **con** envelope (el rename y el delete), o sea que el filtro por
+código ya los cubría.
+
+**Lección.** Es el tercer remedio mal escrito del sprint y de una forma
+distinta a los otros dos. Los primeros fueron arreglos afirmados sin
+probarlos (el truco de las dos pasadas con `--user-data-dir` en 4.7a y el
+`TMPDIR=/tmp` para la basura de Lighthouse en 4.5); este es un impedimento
+afirmado sin verificarlo: se escribió que algo no se podía testear sin
+intentar testearlo. El patrón y el costo son los mismos en las dos
+direcciones: una afirmación no verificada en una bitácora se lee después como
+un hecho.

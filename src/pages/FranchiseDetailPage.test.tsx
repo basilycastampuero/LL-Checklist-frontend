@@ -10,9 +10,13 @@ import FranchiseDetailPage from '@/pages/FranchiseDetailPage'
 import { paths } from '@/router/paths'
 import { t } from '@/i18n/en'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { franchises } from '@/mocks/seed/franchises'
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  server.resetHandlers()
+  server.events.removeAllListeners()
+})
 afterAll(() => server.close())
 
 function renderFranchiseDetail(url: string) {
@@ -119,5 +123,37 @@ describe('FranchiseDetailPage', () => {
     renderFranchiseDetail('/franchise/2-pokemon')
 
     expect(await screen.findByText(t.states.errorTitle)).toBeInTheDocument()
+  })
+
+  // Hallazgo #30 (doc 18): `releaseDate` era `z.string()`; un `null` del
+  // serializer tiraba el parse y el detalle quedaba en ErrorState permanente.
+  it('#30: una versión con releaseDate null renderiza el detalle y muestra un guion', async () => {
+    const pokemon = franchises.find((f) => f.id === 2)!
+    const withNullDate = {
+      ...pokemon,
+      videoContents: pokemon.videoContents.map((c) => ({
+        ...c,
+        versions: c.versions.map((v) => ({ ...v, releaseDate: null })),
+      })),
+    }
+    server.use(
+      http.get('/api/v1/franchises/:id', () =>
+        HttpResponse.json({ franchise: withNullDate }),
+      ),
+    )
+    renderFranchiseDetail('/franchise/2-pokemon')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Pokémon', level: 1 }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(t.states.errorTitle)).not.toBeInTheDocument()
+    // La fecha real del seed ya no está ni se imprime "Invalid Date".
+    expect(screen.queryByText('Apr 14, 2023')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument()
+    // La celda de fecha de la fila (no la del header) vale exactamente "—".
+    const rowLabel = screen
+      .getAllByText(t.detail.version.releaseDate)
+      .find((el) => el.className.includes('sm:hidden'))!
+    expect(rowLabel.nextElementSibling?.textContent).toBe('—')
   })
 })
