@@ -1276,12 +1276,63 @@ View Transitions nativas y no `motion`, que es lo que dice el doc 06.
 Son tres más del mismo tipo que ya acumula el sprint: la verificación que
 parece completa y no lo es.
 
+### La medición que no se pudo hacer, y el control que la delató
+
+Tras el merge del PR #13 se midió Lighthouse en producción tres veces y dio
+**77 / 82 / 82** contra los **90 / 93 / 93** de antes de 4.2. Con el Total
+Blocking Time saltando de 36 ms a 457 ms, parecía una regresión clara y
+suficiente para revertir, que era el compromiso escrito.
+
+**Era una medición inválida.** Lo delató un control que estaba en los propios
+datos sin que nadie lo buscara: en el desglose del hilo principal, el chunk de
+MSW (196 → 455 ms) y el de `http` (53 → 127 ms) **también se triplicaron**, y
+esos archivos son byte por byte idénticos en los dos builds. Ningún cambio de
+código puede hacer más lento un archivo que no tocó. Cuando todo se degrada por
+el mismo factor, el sospechoso es el instrumento y no el código.
+
+La confirmación está en `environment.benchmarkIndex`, la medida que Lighthouse
+toma de la velocidad de la máquina en cada corrida:
+
+| tanda | benchmarkIndex | performance | TBT |
+|---|---|---|---|
+| antes de 4.2 | 3639 / 3683 / 3545 | 90 / 93 / 93 | 30–40 ms |
+| después, 1ª | 1445 / 1466 / 1533 | 77 / 82 / 82 | 410–490 ms |
+| después, 2ª | 1386 / 1399 / 1469 | 82 / 82 / 81 | 390–430 ms |
+| después, 3ª (máquina ociosa) | 1553 / 1538 / 1427 | 81 / 83 / 80 | 370–490 ms |
+
+La máquina estaba **2,4 veces más lenta**, el mismo factor por el que se
+multiplicó todo el trabajo del hilo principal. Y **no se recuperó** al dejarla
+ociosa —load 0.85 sobre 16 CPUs, sin navegadores ni servidores ni builds—, así
+que no es contención de procesos sino un estado persistente del entorno.
+
+**Consecuencia:** la línea base de 93 se tomó en un estado de máquina que ya no
+existe, y el build anterior ya no está desplegado, así que la comparación no se
+puede rehacer. Hoy no se sabe si 4.2 afecta al criterio de 4.5. **No se sabe no
+es lo mismo que está bien**, y por eso queda anotado como pendiente y no como
+cumplido.
+
+La única evidencia válida sobre el costo de 4.2 es la bisección **local**, donde
+las tres variantes se midieron en la misma ventana y con la misma máquina: con
+animación completa 320 ms de TBT, sin animación de entrada 330 ms, y sin
+`motion` en la card 290 ms. Un A/B sigue siendo válido aunque el piso absoluto
+esté distorsionado, mientras los dos lados compartan condiciones. Eso dice que
+las animaciones cuestan **~30 ms**, no 420, y es lo que sostiene la decisión de
+no revertir.
+
+**Regla que queda:** un score de Lighthouse sin su `benchmarkIndex` al lado no
+es comparable con nada. Dos corridas solo se pueden comparar si sus
+`benchmarkIndex` son parecidos.
+
+**Lección.** Las otras equivocaciones de este sprint fueron hipótesis que la
+medición corrigió, que es trabajo normal. Esta fue distinta y más cara: una
+**medición mal hecha presentada como un hecho**, con tabla, seis corridas y
+apariencia de evidencia. Lo único que evitó el daño fue no actuar sobre ella.
+
 ### Lo que queda abierto
 
-- **Falta medir Lighthouse en producción después del merge.** Es el único juez
-  de si el stagger toca el >= 90 de 4.5. Local no es comparable: ya se vio 81
-  local contra 93 en producción sobre el mismo código. Si cae de 90, hay que
-  elegir entre la animación y el criterio.
+- **Medir Lighthouse en producción: intentado el 2026-10-06, SIN RESULTADO
+  VÁLIDO.** Ver "La medición que no se pudo hacer", más arriba. El criterio de
+  4.5 queda **sin verificar** tras 4.2: ni cumplido ni roto.
 - **Dos archivos sobre el techo de ~150 líneas del Definition of Done:**
   `FranchiseCard.tsx` en 156 y `ChecklistTreeItem.tsx` en 205 (ya estaba en
   ~175 antes de esta tarea).
