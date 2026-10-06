@@ -34,6 +34,9 @@ mientras `me` está en vuelo muestra skeleton de página, si 401 redirige a
   (Home, Catalog, Search, My Lists, Profile). Es la decisión responsive más
   importante: la app se usa "tipo app" en el celular.
 - Transiciones de ruta con `motion` (fade/slide sutil, 150–200ms).
+  **Desviado el 2026-10-06 (ADR-026):** se hacen con las View Transitions
+  nativas del navegador, no con `motion`, para no meter `motion` en el
+  camino crítico. El fade/slide sutil y la duración se respetan.
 
 ## Páginas en detalle
 
@@ -160,5 +163,13 @@ Componentes propios (sobre shadcn):
 5. **Animaciones**: transición de ruta, stagger de grids (`motion` variants,
    50ms), hover de cards (scale 1.02 + shadow), layout animations en el árbol.
    Respetar `prefers-reduced-motion`.
+   **Lo implementado en 4.2 (2026-10-06) difiere en cuatro puntos, cada uno con
+   su motivo en `docs/17-sprint4-avance.md`:** la transición de ruta va con las
+   View Transitions nativas (ADR-026); el stagger usa `custom={index}` con tope
+   de 8 posiciones en vez de `staggerChildren`, porque a 50ms encadenados la
+   card 24 entraba 1,2 s tarde; el hover de las cards es un *lift* de 4px y no
+   `scale 1.02`; y el árbol anima solo al expandir, sin `layout` en los
+   hermanos, porque animar la salida desincronizaría `aria-expanded` del DOM y
+   `layout` aplicaría transforms a `<li>` con roving tabindex.
 6. **Accesibilidad mínima**: navegación por teclado en SearchBar/árbol/wizard,
    `aria-label` en steppers e iconos, focus visible, contraste AA en badges.

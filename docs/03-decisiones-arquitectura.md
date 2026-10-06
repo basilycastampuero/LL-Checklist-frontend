@@ -1200,3 +1200,68 @@ solo se ve distinto.
   suite (ver `docs/18-auditoria-frontend-2026-10.md`, sección 9).
 - No contradice el principio de validar cada respuesta en el service: lo
   precisa. Sigue habiendo un `parse` por respuesta; cambia qué se le pide.
+
+---
+
+## ADR-026 — Las transiciones de ruta usan las View Transitions nativas, no `motion`
+
+**Estado.** Aceptado (2026-10-06). Se desvía a propósito de
+`docs/06-diseno-ui.md` línea 36 ("Transiciones de ruta con `motion`").
+
+**Contexto.** La tarea 4.2 pide transiciones de ruta, stagger y
+reduced-motion. El doc 06 manda hacer la transición con `motion`. Pero
+`motion` vive hoy **solo en chunks lazy**; si la transición de ruta lo
+necesita, tiene que montarse en el shell de la app (`App.tsx` /
+`RootLayout.tsx`) y entra al camino crítico. La tarea 4.5 acababa de medir
+**93 de performance en producción con FCP de 1,9 s** (doc 17), y su criterio
+(>= 90) es el que 4.2 podía romper.
+
+**Alternativas consideradas.**
+
+1. **`motion` en el shell** (la letra del doc 06). Sin desvío, con soporte
+   parejo en todos los navegadores. Descartada: mete `motion` en el camino
+   crítico, con riesgo real sobre el criterio de 4.5.
+2. **Las dos: View Transitions con `motion` de fallback.** Mejor experiencia
+   en navegadores sin la API. Descartada: el doble de código de transición para
+   mantener y **no evita el costo**, porque `motion` termina igual en el camino
+   crítico.
+3. **View Transitions nativas y nada más para las rutas.**
+
+**Decisión.** La alternativa 3. Las transiciones de ruta se hacen con el prop
+`viewTransition` de `Link`/`NavLink` de React Router 7.18.1, con la animación
+declarada en CSS (`::view-transition-old/new(root)`). `motion` se sigue usando
+para lo demás: el hover de las cards, el stagger de los grids y la animación
+del árbol. Entra `viewTransition` en los `NavLink` de `BottomTabs` y `Header`
+(Catalog, My Lists) y en el `Link` de la card al detalle; los demás `Link`
+quedan sin él, a propósito.
+
+**El motivo es medible.** Mismos dos builds servidos igual, antes y después:
+
+| | sin 4.2 | con 4.2 |
+|---|---|---|
+| `/catalog`, JS transferido | 415 KB | 416 KB |
+| `/catalog`, FCP | 256 ms | 184 ms |
+| `/login`, chunk de `motion` | no se carga | **no se carga** |
+
+El costo en bundle fue **un kilobyte y una request**, y en una página sin cards
+`motion` sigue sin bajarse. (Mediciones locales; ver la advertencia sobre
+Lighthouse en producción más abajo.)
+
+**Consecuencias.**
+
+- Positivas: `motion` queda fuera del camino crítico; la transición no suma
+  dependencias.
+- Negativas: en Firefox no hay transición. No se rompe nada, degrada en
+  silencio. Hay dos mecanismos de animación en el proyecto (CSS nativo para
+  rutas, `motion` para componentes).
+- El `prefers-reduced-motion` de la transición de ruta se resuelve en CSS,
+  junto al resto.
+
+**Corolario operativo — es lo que alguien va a romper sin querer:**
+**el manejo de `prefers-reduced-motion` para los componentes `motion` NO puede
+hacerse con un `<MotionConfig reducedMotion="user">` en `App.tsx` ni en
+`RootLayout.tsx`**, porque eso importaría `motion/react` en el shell y
+anularía todo este ADR. **Tiene que resolverse dentro de los chunks lazy, con
+`useReducedMotion()` en cada componente que anima.** Así está hecho hoy en
+`FranchiseCard` y `ChecklistTreeItem`. Un componente `motion` nuevo tiene que
+traer su propia guarda.

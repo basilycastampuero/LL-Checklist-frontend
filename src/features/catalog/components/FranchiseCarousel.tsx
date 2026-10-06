@@ -23,10 +23,11 @@ export function FranchiseCarousel({
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">{title}</h2>
       <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:thin]">
-        {items.map((franchise) => (
+        {items.map((franchise, index) => (
           <div key={franchise.id} className="w-32 shrink-0 snap-start sm:w-40">
             <FranchiseCard
               franchise={franchise}
+              index={index}
               inLibrary={isInLibrary?.(franchise.id)}
             />
           </div>

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { ChevronRight, Folder } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { ChecklistNodeActions } from '@/features/lists/components/ChecklistNodeActions'
 import type { ChecklistNode } from '@/features/lists/types'
@@ -58,6 +59,16 @@ export function ChecklistTreeItem({
   // componente — más simple tener la referencia acá que ir a buscarla.
   const liRef = useRef<HTMLLIElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Solo se anima el expandir que hace el usuario, no el árbol que ya nace
+  // abierto: si el nodo se monta expandido (carga inicial, o hijo de un nodo
+  // que se está abriendo) `initial` es `false` y el grupo aparece de una.
+  // `motion` ignora `prefers-reduced-motion` por defecto, y se resuelve acá y
+  // no con un `MotionConfig` en el shell para que `motion` no entre al chunk
+  // de entrada.
+  const reduceMotion = useReducedMotion()
+  const mountedExpanded = useRef(expanded)
+  const animateGroup = !mountedExpanded.current && !reduceMotion
 
   return (
     <li
@@ -152,7 +163,25 @@ export function ChecklistTreeItem({
       </div>
 
       {hasChildren && expanded && (
-        <ul role="group">
+        // Solo animación de ENTRADA (altura + opacidad), sin salida. Una
+        // salida exigiría `AnimatePresence`, que deja el `<ul>` y sus hijos
+        // en el DOM ~150 ms después de que `aria-expanded` ya dice `false`
+        // (y de que `useTreeNavigation` los sacó del recorrido por teclado):
+        // el árbol accesible mentiría. La semántica gana, el colapso es
+        // instantáneo. `overflow` vuelve a `visible` al terminar para que el
+        // anillo de foco de los hijos no quede recortado.
+        <motion.ul
+          role="group"
+          initial={
+            animateGroup ? { height: 0, opacity: 0, overflow: 'hidden' } : false
+          }
+          animate={{
+            height: 'auto',
+            opacity: 1,
+            transitionEnd: { overflow: 'visible' },
+          }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
           {node.children.map((child) => (
             <ChecklistTreeItem
               key={child.id}
@@ -169,7 +198,7 @@ export function ChecklistTreeItem({
               compact={compact}
             />
           ))}
-        </ul>
+        </motion.ul>
       )}
     </li>
   )

@@ -298,12 +298,20 @@ path.
 > una sola corrida no sirve para comparar builds. Detalle en
 > [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
+> ◐ **4.2 implementada y verificada, sin commitear** (2026-10-06): transición
+> de ruta con las View Transitions nativas y no con `motion` (**ADR-026**,
+> desvío deliberado del doc 06), stagger de grids con tope de 400 ms, animación
+> de entrada del árbol y `prefers-reduced-motion` medido en Chromium por CDP;
+> revisión visual a 1440 y 360 px en claro y oscuro. **Falta medir Lighthouse en
+> producción tras el merge** (único juez de si el stagger toca el >= 90 de
+> 4.5). Detalle en [17-sprint4-avance.md](./17-sprint4-avance.md).
+>
 > Resto del sprint sin empezar.
 
 | # | Tarea | Detalle | CA |
 |---|---|---|---|
 | 4.1 | ⚠️ Integración backend real | Adaptador en `lib/api/`; apagar MSW por env (`VITE_API_MODE=real\|mock`) | Flujos core contra Odoo real |
-| 4.2 | Animaciones | Transiciones de ruta, stagger, layout animations, reduced-motion | Revisión visual completa |
+| 4.2 | ◐ Animaciones (sin commitear) | Transiciones de ruta, stagger, layout animations, reduced-motion. **Nota (2026-10-06):** las rutas usan View Transitions nativas, no `motion` ([ADR-026](./03-decisiones-arquitectura.md)); el stagger tiene tope de 8 posiciones; el árbol anima solo al expandir y **no** se animó `layout` en los hermanos (por la semántica ARIA); ver doc 17. Pendiente: Lighthouse en producción tras el merge | Revisión visual completa. **Cumplida** (2026-10-06): 1440 y 360 px, claro y oscuro |
 | 4.3 | Barrido responsive + a11y | 360/768/1024/1440; teclado; contraste | Checklist en PR |
 | 4.4 | Manejo de errores global | ErrorBoundary por página, retry, 404, offline banner | Errores inyectados por MSW demostrables |
 | 4.5 | ◐ Performance (en curso) | code-splitting por ruta (ya), `React.lazy` de modales pesados, memo en grids, bundle analyze. **Nota (2026-10-06):** nada de esto hizo falta; el criterio ya pasaba (92/100 en producción). Queda abierta la oportunidad `unused-javascript` (600 ms / 98 KB) | Lighthouse ≥ 90 perf/a11y en `/catalog`. **Cumplido y re-verificado en producción tras el PR #10** (2026-10-06): tres corridas, performance 90/93/93 (mediana 93), a11y 100 en las tres |

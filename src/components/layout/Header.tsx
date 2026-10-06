@@ -29,7 +29,7 @@ export function Header() {
   const { signOut } = useSignOut()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
+    <header className="[view-transition-name:app-header] sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
         <Link to={paths.home} className="flex items-center gap-2 font-bold">
           <span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
@@ -39,10 +39,10 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-5 md:flex">
-          <NavLink to={paths.catalog} className={navLinkClass}>
+          <NavLink to={paths.catalog} className={navLinkClass} viewTransition>
             {t.nav.catalog}
           </NavLink>
-          <NavLink to={paths.myLists} className={navLinkClass}>
+          <NavLink to={paths.myLists} className={navLinkClass} viewTransition>
             {t.nav.myLists}
           </NavLink>
         </nav>
