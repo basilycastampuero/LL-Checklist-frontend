@@ -5,7 +5,8 @@
 > #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
 > 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
 > auditoría cerrados (2026-10-01); 4.7a (deploy de la demo mock) cerrada y
-> mergeada (2026-10-02). 3.3b y B9 (deuda del
+> mergeada (2026-10-02); 4.5 (performance) en curso con criterio cumplido
+> pendiente de re-medición (2026-10-06). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -956,3 +957,158 @@ resultado se descartó entero.
   esté del lado de la cuenta con la que muestra su trabajo. Moverla implica
   recrear el proyecto en Vercel y cambiar la URL: es más barato decidirlo antes
   de 4.8.
+
+## Actualización (2026-10-06) — Tarea 4.5 (performance): el criterio ya se cumplía, la hipótesis era falsa
+
+Rama `sprint4/4.5-y-cierre-4.7a`, commit `1bbe44c`, **sin pushear ni mergear**.
+**4.5 NO está cerrada.** El criterio de aceptación (Lighthouse >= 90 perf/a11y
+en `/catalog`) se cumple en producción **con el código anterior a este
+cambio**; falta volver a medir producción después de desplegarlo. Si esa
+medición cae por debajo de 90, el cambio se revierte.
+
+### El hallazgo que da vuelta la tarea
+
+Lighthouse real (v12, throttling por defecto: Slow 4G simulado) contra la demo
+pública `https://ll-checklist-frontend.vercel.app/catalog`, **antes de tocar
+una línea de código**:
+
+- **performance 92**, **accessibility 100**. El criterio pide >= 90 en las
+  dos: **ya pasaba**.
+- FCP 2,3 s (score 74), LCP 2,7 s (85), Total Blocking Time 30 ms (100), CLS
+  0,001 (100), Speed Index 4,0 s (80).
+- Ninguna de las cosas que el plan lista para 4.5 (`React.lazy` de modales
+  pesados, memo en grids, bundle analyze) hizo falta para cumplir el criterio.
+- Desglose del LCP en producción: TTFB 763 ms, **Load Delay 1808 ms**, Load
+  Time 125 ms, Render Delay 16 ms.
+
+Oportunidad que sí queda abierta: **`unused-javascript`, 600 ms y 98 KB de
+ahorro potencial**:
+
+| Chunk | Tamaño | Sin usar |
+|---|---|---|
+| `index-*.js` | 112 KB | 50 KB (45%) |
+| `PageWrapper-*.js` | 49 KB | 23 KB (48%) |
+| `browser-*.js` (MSW) | 96 KB | 24 KB (25%) |
+
+**El chunk de MSW es el mejor aprovechado de los tres**, lo que contradice la
+hipótesis con la que arrancó la tarea.
+
+### La hipótesis que se cayó (resultado negativo)
+
+La tarea arrancó con una idea **equivocada**: que MSW estaba en el camino
+crítico porque `main.tsx` hacía `await enableMocking()` antes del
+`createRoot`, y que eso explicaba los 1808 ms de Load Delay del LCP (la nota
+"Para 4.5" de la sección de 4.7a de este documento partía de esa suposición).
+
+**Medición previa**, CDP en localhost **sin throttling**, build en modo mock
+contra build en modo real servidos igual: FCP 200 ms vs 100 ms, JS transferido
+358 KB vs 255 KB, chunk de MSW 159 KB transferidos. Es decir, MSW costaba 100
+ms de FCP y 103 KB en el mejor de los casos; ya ahí el número era más chico de
+lo supuesto.
+
+Se hizo el cambio igual (ver abajo) y se midió A/B con Lighthouse **local,
+mismas condiciones, build viejo contra build nuevo**:
+
+| | viejo | nuevo |
+|---|---|---|
+| performance | 81 | 80 |
+| FCP | 2,9 s | 3,1 s (+268 ms) |
+| LCP | 4,2 s | 4,1 s (−36 ms) |
+| Speed Index | 2,9 s | 3,1 s (+268 ms) |
+| Total Blocking Time | 30 ms | 40 ms |
+| LCP Load Delay | 3500 ms | 3426 ms (−74 ms) |
+
+**Conclusión: no hubo mejora de performance atribuible al cambio.** El Load
+Delay queda en ~3,4 s en los dos builds, así que el `await` no era su causa.
+Y una sola corrida de Lighthouse es demasiado ruidosa para afirmar ni mejora
+ni empeoramiento: 1 punto de diferencia y ±270 ms de FCP están dentro de la
+varianza. Para zanjar si el cambio ayuda o perjudica harían falta **varias
+corridas por build**, no una.
+
+Dos cosas más que la medición dejó claras:
+
+- **Lighthouse local no es comparable con producción**: 81 local contra 92 en
+  producción sobre el mismo código, por el TTFB y el throttling simulado. Para
+  juzgar el criterio hay que medir producción.
+- La causa del Load Delay de ~1,8 s (producción) / ~3,4 s (local) **sigue sin
+  identificarse**. Queda como pregunta abierta, no como hallazgo.
+
+### El cambio que se mantuvo: por robustez, NO por performance
+
+- **`src/lib/mswGate.ts`** (nuevo): una compuerta que **falla abierta**.
+  Arranca abierta y solo se cierra si alguien la cierra. Un contexto que no
+  arranca MSW —los tests, que usan el server de Node y no el worker del
+  navegador— no espera nada y no hay que acordarse de abrirla desde ningún
+  `setup`. Al revés, olvidarse de abrirla colgaría todas las requests.
+- **`src/main.tsx`**: React monta de entrada; MSW arranca en paralelo. El
+  `.finally` que abre la compuerta corre también en el camino de error, a
+  propósito.
+- **`src/lib/http.ts`**: el interceptor de request (el mismo que traduce
+  `?mockError=`) espera `mocksReady()` antes de cada request. Es la única
+  espera a MSW que queda en la app.
+
+**Lo que esto sí arregla, y es real:** antes, si MSW no arrancaba, el
+`enableMocking().then(...)` sin `.catch()` no corría nunca y la app quedaba en
+**pantalla blanca sin un error en ninguna parte**. Ese modo de falla no es
+teórico: mordió durante 4.7a y costó un diagnóstico entero (ver "Dos
+tropiezos" más arriba). Ahora las requests salen, fallan, y la app muestra los
+estados de error que ya tiene. En una demo pública, una pantalla blanca muda es
+el peor resultado posible.
+
+### El bug de accesibilidad que Lighthouse encontró y 4.3 no
+
+`src/features/catalog/components/MultiSelectFilter.tsx` tenía
+`aria-label={label}` en un botón cuyo texto visible era
+`{label}: {triggerText}`. Mostraba **"Genres: All genres"** (o "Genres: 2
+selected") y su nombre accesible era solo **"Genres"**.
+
+- **`aria-label` no complementa el texto visible, lo reemplaza.** El botón ya
+  tenía un nombre accesible correcto en su propio texto y el atributo lo
+  pisaba, tirando justo la parte útil: el estado del filtro. Un lector de
+  pantalla no se enteraba de cuántos filtros había activos; alguien que navega
+  por voz decía lo que veía y el comando no matcheaba.
+- **El arreglo es borrar el atributo, no cambiarlo.** Afecta dos controles:
+  Genres y Platforms.
+- **Verificado de forma independiente de Lighthouse**, leyendo el nombre
+  accesible computado por Chrome vía CDP (`Accessibility.getPartialAXTree`):
+  ahora los dos triggers dan "Genres: All genres" y "Platforms: All
+  platforms", con origen `contents`, coincidiendo con el texto visible.
+- **Contraste que vale como lección:** el trigger del menú del avatar
+  **conserva** su `aria-label` ("Account menu for Alex Rivera") y está bien,
+  porque no tiene texto visible. La regla no es "`aria-label` es malo", es
+  "solo sirve cuando no hay texto visible que usar".
+- **Por qué 4.3 no lo detectó:** ese barrido verificó que los controles
+  **tuvieran** nombre accesible, no que **coincidiera** con el texto visible.
+  Son dos reglas distintas. **Límite conocido del barrido de 4.3.**
+- Lighthouse le da **peso 0** a esta auditoría en la categoría, por eso
+  accessibility marcaba 100 **con la auditoría fallando**. Un 100 de
+  accessibility no significa que no haya nada que arreglar.
+
+### Verificación
+
+`npm run typecheck` limpio, `npm run lint` limpio, **345/345 tests en 61
+archivos** (antes 342 en 60). Tres tests nuevos en `src/lib/mswGate.test.ts`;
+del que importa se comprobó que **falla sin su arreglo** (`expected [ Array(1)
+] to deeply equal []`). Ese test incluye un `finally` que reabre la compuerta:
+si una aserción fallara con la compuerta cerrada colgaría el resto de la
+suite.
+
+**No verificado:** el efecto del cambio sobre performance en producción (no
+está desplegado), y nada pasó por CI (rama sin pushear).
+
+### Trampa de herramienta: Lighthouse en WSL ensucia el repo
+
+Correr Lighthouse en WSL escribe directorios temporales **dentro del repo**:
+aparecieron tres `C:\Users\USUARIO\AppData\Local\lighthouse.XXXXX/` en la raíz
+del proyecto, porque toma el `TMP` de Windows. Hubo que borrarlos a mano. Se
+evita con `TMPDIR=/tmp`. Es la tercera trampa de medición de este sprint,
+junto a la del parser `oklch` (4.3) y la de `--virtual-time-budget` (4.7a).
+
+### Lo que queda pendiente de 4.5
+
+- **Volver a medir Lighthouse en producción después de desplegar este
+  cambio.** Es el criterio real; si cae por debajo de 90, se revierte.
+- La oportunidad de `unused-javascript` (600 ms / 98 KB), concentrada en el
+  bundle de entrada y `PageWrapper`, no en MSW.
+- Si se quiere zanjar el efecto del cambio en performance, varias corridas de
+  Lighthouse por build.
