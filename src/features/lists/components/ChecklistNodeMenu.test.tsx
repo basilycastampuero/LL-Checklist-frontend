@@ -156,6 +156,46 @@ describe('ChecklistNodeMenu — rename', () => {
   })
 })
 
+describe('ChecklistNodeMenu — rename con respuesta de error sin envelope (#22)', () => {
+  // Hallazgo #22 (doc 18): un 500 que no trae `{ error: { code, message } }`
+  // (HTML de proxy, traceback de Odoo) hace que `normalizeError` deje el
+  // mensaje de axios; `apiErrorMessage` lo pasaba textual al diálogo.
+  it.each([
+    [
+      'HTML crudo',
+      () =>
+        new HttpResponse('<html>Bad gateway</html>', {
+          status: 500,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+    ],
+    [
+      'JSON ajeno al contrato',
+      () => HttpResponse.json({ detail: 'boom' }, { status: 500 }),
+    ],
+  ])(
+    'un 500 con %s muestra el fallback y no el texto de axios',
+    async (_label, respond) => {
+      server.use(http.patch('/api/v1/me/checklists/:id', respond))
+      renderTree()
+      const user = await openMenuFor('Completed')
+      await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+
+      const input = await screen.findByLabelText('Name')
+      await user.clear(input)
+      await user.type(input, 'Should not stick')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      const alert = await screen.findByRole('alert')
+      // Comparación exacta: toHaveTextContent matchea por substring.
+      expect(alert.textContent).toBe(t.lists.errors.saveFailed)
+      expect(
+        screen.queryByText(/Request failed with status code/),
+      ).not.toBeInTheDocument()
+    },
+  )
+})
+
 describe('ChecklistNodeMenu — create', () => {
   it('crea una carpeta raíz desde el botón "New list" del header', async () => {
     renderTree()
