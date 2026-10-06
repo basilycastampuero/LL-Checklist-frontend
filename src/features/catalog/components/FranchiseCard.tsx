@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion, type Variants } from 'motion/react'
 import { Check, Gamepad2, Film } from 'lucide-react'
 import { GenreBadge } from '@/components/common/GenreBadge'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,43 @@ import type { FranchiseSummary } from '@/features/catalog/types'
 interface FranchiseCardProps {
   franchise: FranchiseSummary
   inLibrary?: boolean
+  /**
+   * Posición en el grid/carrusel. Si viene, la card hace una entrada
+   * escalonada; si no, aparece sin animar (uso suelto, tests de componente).
+   */
+  index?: number
+}
+
+/** Pasos del stagger (doc 06: 50 ms) y tope de posiciones que escalonan. */
+const STAGGER_STEP_S = 0.05
+const STAGGER_MAX_ITEMS = 8
+
+/*
+ * Entrada escalonada, con variants y `custom` (el índice) en lugar de un
+ * `staggerChildren` en un contenedor, por dos razones:
+ *  - `staggerChildren` suma 50 ms por hijo sin techo: la card 24 entraría
+ *    1,2 s tarde. Con `custom` el delay se acota en 8 * 50 = 400 ms.
+ *  - No exige un `motion.div` padre en cada grid (catálogo, búsqueda y
+ *    carrusel tienen estructuras distintas), así que esos archivos no
+ *    importan `motion` y no hace falta un contenedor común.
+ *
+ * NO parte de `opacity: 0`: el LCP lo define la imagen de una card y Chrome
+ * ignora los elementos con opacidad 0 hasta que dejan de serlo, así que un
+ * fade-in desde cero retrasaría la métrica por el delay entero. Parte de
+ * 0.6 + un desplazamiento de 12 px: se ve la entrada, pero el elemento ya
+ * cuenta como pintado en el primer frame.
+ */
+const enterVariants: Variants = {
+  hidden: { opacity: 0.6, y: 12 },
+  visible: (index: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.25,
+      ease: 'easeOut',
+      delay: Math.min(index, STAGGER_MAX_ITEMS) * STAGGER_STEP_S,
+    },
+  }),
 }
 
 function TypeBadge({ games, videos }: { games: number; videos: number }) {
@@ -32,17 +69,31 @@ function TypeBadge({ games, videos }: { games: number; videos: number }) {
  * Card de franquicia (doc 06): poster 2:3, nombre, hasta 2 géneros, badge de
  * tipo, indicador "in your list" y hover animado con motion.
  */
-export function FranchiseCard({ franchise, inLibrary }: FranchiseCardProps) {
+export function FranchiseCard({
+  franchise,
+  inLibrary,
+  index,
+}: FranchiseCardProps) {
+  // `motion` no respeta `prefers-reduced-motion` por defecto. Se resuelve acá
+  // y no con un `<MotionConfig>` en el shell: eso importaría `motion/react` en
+  // el chunk de entrada, que es justo lo que ADR de performance evita.
+  const reduceMotion = useReducedMotion()
+  const animateEntry = index !== undefined && !reduceMotion
   const { from, to } = franchise.yearRange
   const years = from ? (to && to !== from ? `${from}–${to}` : `${from}`) : null
 
   return (
     <motion.div
-      whileHover={{ y: -4 }}
+      variants={enterVariants}
+      custom={index ?? 0}
+      initial={animateEntry ? 'hidden' : false}
+      animate="visible"
+      whileHover={reduceMotion ? undefined : { y: -4 }}
       transition={{ type: 'spring', stiffness: 300, damping: 24 }}
     >
       <Link
         to={franchisePath(franchise.id, franchise.name)}
+        viewTransition
         className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="relative overflow-hidden rounded-lg border border-border bg-muted shadow-sm transition-shadow group-hover:shadow-md">

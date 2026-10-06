@@ -141,3 +141,62 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/*
+ * Transición de ruta con View Transitions nativas (tarea 4.2, doc 06 §5).
+ * Se dispara con `viewTransition` en los Link/NavLink de la navegación
+ * principal; el resto de la app navega sin animar a propósito. Va en CSS y no
+ * con `motion` para que `motion` no entre al chunk de entrada (camino crítico).
+ *
+ * Solo entra la página nueva (fade + 8 px de desplazamiento, 180 ms): la vieja
+ * queda quieta debajo y la nueva la cubre, sin el "dip" de brillo que da un
+ * cross-fade simultáneo. `mix-blend-mode: normal` pisa el `plus-lighter` del
+ * navegador, que es lo que haría sumarse a las dos capas.
+ *
+ * El header y las bottom tabs llevan `view-transition-name` propio (clases
+ * arbitrarias en Header/BottomTabs): así quedan fuera del snapshot `root` y no
+ * parpadean ni se desplazan con el contenido.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  animation: none;
+}
+::view-transition-new(root) {
+  animation: route-enter 180ms ease-out both;
+}
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/*
+ * prefers-reduced-motion, mitad CSS (la mitad `motion` vive en FranchiseCard y
+ * ChecklistTreeItem). Con `0.01ms` y no `none` en las transiciones del resto:
+ * así los eventos `transitionend`/`animationend` siguen disparando (Radix los
+ * espera para desmontar los diálogos de shadcn, que usan `tw-animate-css`).
+ * Cubre las transiciones de Tailwind, `animate-in/out`, `animate-pulse` y el
+ * scroll suave. Las View Transitions son pseudo-elementos y `*` no los
+ * alcanza, por eso van aparte y sí con `animation: none`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

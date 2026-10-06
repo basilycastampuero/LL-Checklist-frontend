@@ -132,9 +132,10 @@ export default function CatalogPage() {
           {t.catalog.resultsHeading}
         </h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-          {items.map((franchise) => (
+          {items.map((franchise, index) => (
             <FranchiseCard
               key={franchise.id}
+              index={index}
               franchise={franchise}
               inLibrary={library.hasFranchise(franchise.id)}
             />

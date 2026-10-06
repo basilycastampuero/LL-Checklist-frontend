@@ -32,12 +32,13 @@ export function BottomTabs() {
   ]
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm md:hidden">
+    <nav className="[view-transition-name:bottom-tabs] fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm md:hidden">
       <ul className="mx-auto flex max-w-md items-stretch justify-around">
         {tabs.map((tab) => (
           <li key={tab.label} className="flex-1">
             <NavLink
               to={tab.to}
+              viewTransition
               end={tab.to === paths.home}
               className={({ isActive }) =>
                 cn(
