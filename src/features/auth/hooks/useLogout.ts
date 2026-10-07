@@ -30,6 +30,8 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => authService.logout(),
     onSettled: () => {
+      // `usePrivateCacheReset` (RootLayout) ya vacía el cache privado ante
+      // cualquier cambio de identidad; esto queda explícito por claridad.
       clearSession()
       queryClient.removeQueries({ queryKey: authKeys.all })
       queryClient.removeQueries({ queryKey: listKeys.all })

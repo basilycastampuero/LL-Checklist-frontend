@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
+import { identityOf, isSameSessionOwner, useSessionStore } from '@/store/sessionStore'
 import { patchChecklistNode } from '@/features/lists/utils/checklistTree'
 import { apiErrorMessage } from '@/features/lists/utils/apiErrorMessage'
 import type {
@@ -11,6 +12,8 @@ import type {
 
 interface UpdateChecklistContext {
   previousTree: ChecklistNode[] | undefined
+  /** Dueño del snapshot; ver `isSameSessionOwner`. */
+  ownerId: number | null
 }
 
 /**
@@ -100,11 +103,16 @@ export function useUpdateChecklist(
         )
       }
 
-      return { previousTree }
+      return {
+        previousTree,
+        ownerId: identityOf(useSessionStore.getState()),
+      }
     },
 
     onError: (error, _variables, context) => {
-      if (context?.previousTree) {
+      // Solo si la sesión sigue siendo la del dueño del snapshot: tras un 401
+      // el cache privado se vació, y restaurar lo resucitaría con datos ajenos.
+      if (context?.previousTree && isSameSessionOwner(context.ownerId)) {
         queryClient.setQueryData(listKeys.tree(), context.previousTree)
       }
       if (errorToast) toast.error(apiErrorMessage(error, errorToast))
