@@ -17,12 +17,13 @@ mocked data, no backend required. Sign in with **`alex@example.com`** /
 
 - **Shared catalog** of franchises, contents and versions, with filters by type,
   genre, platform and year, all driven from the URL so any view is shareable.
-- **Nested checklists** as an accessible tree: create, rename, move and delete
-  folders, with full keyboard navigation.
+- **Nested checklists** as an accessible tree: create, rename, publish and
+  delete folders, with full keyboard navigation.
 - **Episode progress** with optimistic updates — the stepper responds
   immediately and rolls back if the server rejects the change.
-- **Linked copies**: adding the same version to several lists keeps their
-  progress in sync.
+- **Linked copies**: adding a version that is already in one of your lists asks
+  what you want — create a *synced* copy whose episode progress follows the
+  original, or add it anyway as an independent copy. Syncing is opt-in.
 - **Public profiles** for lists marked as published.
 - Light and dark themes, a mobile layout with bottom tabs, and offline detection.
 
@@ -161,12 +162,19 @@ named volume so it never mixes with the host's.
 **Production image (nginx):**
 
 ```bash
-docker build --target production -t ll-checklist-frontend .
+docker build --target production --build-arg VITE_API_MODE=mock -t ll-checklist-frontend .
 docker run -p 8080:80 ll-checklist-frontend
 ```
 
 Serves the static bundle with route fallback for React Router
-(`docker/nginx.conf`).
+(`docker/nginx.conf`). The `VITE_API_MODE=mock` build argument is what makes this
+a working demo: without it the production build uses `real` (see above) and, since
+the image has no backend behind it, every `/api/*` and `/web/image/*` request
+answers `503` with the contract's error envelope.
+
+For `real` mode the image is not enough: it does **not** proxy to the backend, so
+a reverse proxy in front must route `/api` and `/web/image` to Odoo on the same
+origin (ADR-005). That is not solved in the image yet.
 
 **On WSL:** if Docker Desktop runs on Windows with WSL integration disabled, the
 `docker` command does not exist inside WSL. Either enable the integration or call

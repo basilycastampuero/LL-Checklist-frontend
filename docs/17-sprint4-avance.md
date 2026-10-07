@@ -1364,3 +1364,57 @@ la lectura. El criterio se da por cumplido.
 - Detalle cosmético preexistente y ajeno a 4.2, visto en las capturas: el input
   de año muestra el placeholder cortado como "From yea" en los dos anchos.
 
+
+## Actualización (2026-10-07) — Tarea 4.8 (README): correcciones del code-review
+
+Un `/code-review` del 2026-10-07 sobre el README nuevo dejó dos hallazgos, ya
+corregidos en la rama `sprint4/4.8-readme`. Tarea 4.8 sigue en curso.
+
+### Hallazgo 10: el README describía funciones que no existen
+
+- **Mover carpetas.** El README decía "create, rename, move and delete".
+  Verificado en código: `ChecklistNodeMenu.tsx` solo ofrece renombrar, borrar,
+  publicar/despublicar y nueva sub-lista; `useUpdateChecklist.ts` documenta que
+  el patch solo admite campos cosméticos y que "mover/reordenar es la tarea 4.10"
+  (stretch, sin implementar). El único `parentId` de escritura es el de crear
+  (`ChecklistNodeMenu.tsx:117`). Ahora dice "create, rename, publish and delete".
+- **Sincronización de copias.** El README decía que agregar la misma versión a
+  varias listas "mantiene el progreso sincronizado". Falso: la sincronización es
+  opcional. Ante un 409, `WizardConflictStep.tsx` ofrece "Add anyway" (copia
+  independiente, `force: true`) o "Create synced copy" (`syncWithLinkId`, solo
+  habilitado al elegir con cuál sincronizar), más cancelar
+  (`useLinkWizard.ts:54-57`, `:128-135`). El README ahora lo describe como
+  opt-in.
+- **Resto de la sección "What it does"**, revisada con el mismo criterio: sin
+  otras afirmaciones falsas (filtros por tipo/género/plataforma/año, perfiles
+  públicos, bottom tabs, `OfflineBanner` y temas existen en código).
+  **No se verificó en ejecución** el comportamiento de rollback del stepper ni la
+  navegación por teclado; se apoyan en tests y en el doc 17/18 ya existentes.
+
+### Hallazgo 3: la imagen Docker de producción entregaba la app rota
+
+- `docker/nginx.conf`: el `try_files ... /index.html` respondía `index.html` con
+  200 a `/api/*` y `/web/image/*`; Zod fallaba con HTML y el catálogo mostraba
+  `ErrorState` sin pista de la causa. Ahora `location ~ ^/(api|web/image)/`
+  devuelve 503 con el envelope del contrato (`code: INTERNAL`, mensaje "No
+  backend behind this image: ..."). La imagen **no** proxea al backend.
+- `Dockerfile` (etapa `build`): nuevo `ARG VITE_API_MODE`. Sin pasarlo, el build
+  de producción usa `real` (`lib/env.ts`, a propósito), y como la imagen no trae
+  backend, todo responde 503. Demo:
+  `docker build --target production --build-arg VITE_API_MODE=mock -t ll-checklist-frontend .`
+  Si el arg no se pasa se hace `unset` en vez de exportarlo vacío, porque un
+  string vacío no lo atrapa el `??` de `env.ts`.
+- `Dockerfile`: base de `node:24-alpine` a `node:22-alpine`, para coincidir con
+  `.nvmrc`, `engines` y la CI.
+- README, sección "Production image (nginx)", actualizada con el comando de demo
+  y una nota sobre el modo real.
+- **Modo real sigue sin resolverse en la imagen**: hace falta un reverse proxy
+  delante que lleve `/api` y `/web/image` a Odoo same-origin (ADR-005).
+  Relacionado con 4.7b (bloqueada).
+
+### Verificación
+
+- **Pendiente: la imagen no se construyó.** Docker Desktop no estaba corriendo.
+  Solo se probó la lógica de shell del `RUN` (sin arg, variable indefinida; con
+  `mock`, exportada). Ni el 503 de nginx ni el build con `--build-arg` están
+  verificados de punta a punta.
