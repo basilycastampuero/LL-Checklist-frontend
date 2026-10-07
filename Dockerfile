@@ -32,4 +32,5 @@ RUN if [ -n "$VITE_API_MODE" ]; then export VITE_API_MODE; else unset VITE_API_M
 FROM nginx:1.27-alpine AS production
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 EXPOSE 80
