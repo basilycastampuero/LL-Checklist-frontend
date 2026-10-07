@@ -243,6 +243,34 @@ describe('DELETE /me/links/:id', () => {
 })
 
 describe('rutas públicas', () => {
+  /** Todos los `notes` de un árbol de entries, hijos de franchise incluidos. */
+  function allNotes(items: ListEntry[]): (string | null)[] {
+    return items.flatMap((e) => [
+      e.notes,
+      ...allNotes(e.childEntries ?? []),
+    ])
+  }
+
+  it('la ruta pública no divulga las notas del dueño (ADR-028)', async () => {
+    // Hallazgo #2 del code-review del 2026-10-07. La lista 1 está publicada y
+    // el seed trae una nota en 5000; el hijo 5002 recibe otra para cubrir la
+    // recursión sobre `childEntries`, el nivel que menos se mira.
+    await api.patch('/me/links/5002', { notes: 'secreto del hijo' })
+
+    const { data } = await api.get<{ items: ListEntry[] }>(
+      '/users/1/checklists/1/entries',
+    )
+    expect(allNotes(data.items).length).toBeGreaterThan(2)
+    expect(allNotes(data.items).every((n) => n === null)).toBe(true)
+  })
+
+  it('el dueño sigue viendo sus notas por /me', async () => {
+    await api.patch('/me/links/5002', { notes: 'secreto del hijo' })
+    const notes = allNotes(await listsService.getEntries(1))
+    expect(notes).toContain('Ufotable animation is unreal.')
+    expect(notes).toContain('secreto del hijo')
+  })
+
   it('una lista privada ANIDADA devuelve 404, no sus entries', async () => {
     // "2010s" (6) es privada y cuelga de tres carpetas privadas. El mock viejo
     // solo filtraba el nivel raíz, así que la devolvía entera.
