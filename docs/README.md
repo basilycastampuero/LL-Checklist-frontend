@@ -39,7 +39,7 @@
 | [13-sprint3a-avance.md](./13-sprint3a-avance.md) | Bitácora: **Sprint 3a completo** (auth + listas) — carril A 8/8 y carril B 5/5, cambio de contrato `field?: string` (ya implementado en el backend real), vista de entries (3.6), onboarding de starter lists (3.5c), escritura en `/me/*` y cierre de la fuga de imágenes de ADR-014 (B4), checkpoint de contrato con un drift real encontrado y corregido (B5) |
 | [15-diseno-sprint3b.md](./15-diseno-sprint3b.md) | Diseño técnico del Sprint 3b: el *cómo* de tracking y vinculación — agregado del padre durante la ventana optimista, fan-out de invalidación por mutación, el 409 parseado en el service, el mock de `/me/links` dejando de ser un stub (ADR-020 a ADR-022), plan por tarea y carril B (`ll-odoo`) |
 | [16-sprint3b-avance.md](./16-sprint3b-avance.md) | Bitácora: avance del Sprint 3b — carril A 7/8 (falta 3.3b, OAuth Twitch) y carril B 4/5 (falta solo B9, diferida junto con 3.3b); mock de `/me/links` ejecutando el modelo (3.12), stepper optimistic (3.7), wizard de vinculación (3.8), perfil público (3.10), cierre de la deuda #6 (3.13), notas fuera del flag (3.11), y el fix de un flake de CI por la latencia simulada de MSW |
-| [17-sprint4-avance.md](./17-sprint4-avance.md) | Bitácora: avance del Sprint 4 — tarea 4.13 (punto de entrada de logout en la UI: `SettingsPage` real con apariencia/cuenta, y menú en el avatar del header), que cierra la deuda de logout abierta desde el Sprint 3a |
+| [17-sprint4-avance.md](./17-sprint4-avance.md) | Bitácora: avance del Sprint 4 — 4.13 (logout en la UI), 4.11/4.12, 4.4, 4.3, 4.6, 4.7a (demo mock en Vercel), 4.5 (performance: el criterio ya se cumplía) y 4.2 (animaciones, ADR-026), con las mediciones de Lighthouse y la lección sobre `benchmarkIndex` |
 | [18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md) | Auditoría del frontend (2026-10-01, sin backend): 26 hallazgos, **26 cerrados y 0 abiertos** — #21 a #36 (revisión general, 1 High) y F1 a F10 (antipatrones recurrentes) — cada uno con archivo:línea, escenario y severidad; zonas declaradas sanas y alcance no cubierto |
 | [ll_checklist_ai_context.md](./ll_checklist_ai_context.md) | Brief original del proyecto (visión tipo MyAnimeList). Referencia histórica: el backend real NO implementa este modelo tal cual — ver el gap en [`../docs-backend/02-analisis-backend-odoo.md`](../docs-backend/02-analisis-backend-odoo.md) |
 
@@ -99,11 +99,11 @@ mantiene como camino crítico del Sprint 3a.
       junto con 3.3b); mergeado a `main` en el PR #4 — ver
       [16-sprint3b-avance.md](./16-sprint3b-avance.md)
 - [ ] **Sprint 4 — integración, pulido y deploy**: en curso. Cerradas **4.1,
-      4.3, 4.4, 4.6, 4.11, 4.12 y 4.13** (siete de trece) — ver
-      [17-sprint4-avance.md](./17-sprint4-avance.md). Sin empezar: 4.2
-      (animaciones) y 4.5 (performance); postergadas por decisión del dueño
-      del proyecto: 4.7 (deploy) y 4.8 (README de portafolio); 4.9 y 4.10 son
-      *stretch*. Auditoría del frontend con sus 26 hallazgos cerrados en
+      4.2, 4.3, 4.4, 4.5, 4.6, 4.11, 4.12 y 4.13** (nueve de trece) — ver
+      [17-sprint4-avance.md](./17-sprint4-avance.md). 4.7 parcial: 4.7a
+      (demo mock en Vercel) cerrada, 4.7b bloqueada por falta de la URL
+      pública del Odoo de Chano en Railway; 4.8 (README de portafolio) en
+      curso; 4.9 y 4.10 son *stretch*. Auditoría del frontend con sus 26 hallazgos cerrados en
       [18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md)
 
 > El Sprint 3 se partió en **3a** (auth + listas) y **3b** (tracking + wizard):
