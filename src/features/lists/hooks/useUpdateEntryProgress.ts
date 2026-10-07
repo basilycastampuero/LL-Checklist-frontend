@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
 import { identityOf, isSameSessionOwner, useSessionStore } from '@/store/sessionStore'
-import { patchEntryProgress } from '@/features/lists/utils/entryTree'
+import { findEntry, patchEntryProgress } from '@/features/lists/utils/entryTree'
 import { t } from '@/i18n/en'
 import type { ListEntry, VersionEntry } from '@/features/lists/types'
 
@@ -13,13 +13,16 @@ const COMMIT_DELAY_MS = 400
 
 interface Burst {
   /**
-   * El cache tal como lo dejó el último valor **confirmado por el servidor**.
+   * El `watchedEpisodes` de ESTE entry tal como estaba antes del primer click
+   * de la ráfaga: a lo único que su rollback tiene que volver (tarea 4.17).
+   * Es un número y no el array del cache a propósito: restaurar el array
+   * entero borraba el cambio ya aceptado de otro link que corre en paralelo.
    * Vive mientras la cadena de commits siga viva y se limpia recién cuando
    * queda ociosa, no cuando arranca un commit: con `scope`, un commit encolado
    * no corre su `onMutate` hasta que liquida el anterior, así que consumirlo
    * ahí dejaba ráfagas enteras sin a qué volver.
    */
-  snapshot?: ListEntry[]
+  baseline?: number
   timer?: ReturnType<typeof setTimeout>
   /** Último valor que el usuario pidió y todavía no salió. */
   pending?: number
@@ -34,8 +37,9 @@ interface Burst {
 }
 
 interface MutationContext {
-  snapshot: ListEntry[] | undefined
-  /** Dueño del snapshot; ver `isSameSessionOwner`. */
+  /** Ver `Burst.baseline`. */
+  baseline: number | undefined
+  /** Dueño del patch; ver `isSameSessionOwner`. */
   ownerId: number | null
 }
 
@@ -96,19 +100,27 @@ export function useUpdateEntryProgress(
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey })
       return {
-        snapshot: burst.current.snapshot,
+        baseline: burst.current.baseline,
         ownerId: identityOf(useSessionStore.getState()),
       }
     },
 
-    // Se restaura el array ENTERO, no la fila: mismo criterio que
-    // `useUpdateChecklist`. Y el toast está en la CA del plan, no es adorno —
-    // sin él la barra vuelve atrás sola y el usuario no sabe por qué.
+    // Rollback quirúrgico (tarea 4.17): se devuelve SOLO este entry a su valor
+    // previo, sobre el cache actual, y `patchEntryProgress` ajusta el
+    // agregado del padre con el delta inverso. El toast está en la CA del
+    // plan, no es adorno — sin él la barra vuelve atrás sola y el usuario no
+    // sabe por qué.
     onError: (_error, _watchedEpisodes, context) => {
-      // Tras un 401 el cache privado se vació: restaurar lo resucitaría con
-      // datos del dueño anterior, así que solo se restaura si es el mismo.
-      if (context?.snapshot && isSameSessionOwner(context.ownerId)) {
-        queryClient.setQueryData(queryKey, context.snapshot)
+      // Tras un 401 el cache privado se vació (`getQueryData` da `undefined`),
+      // y el guard de dueño frena el caso de que ya haya otro usuario cargado.
+      if (context?.baseline != null && isSameSessionOwner(context.ownerId)) {
+        const current = queryClient.getQueryData<ListEntry[]>(queryKey)
+        if (current) {
+          queryClient.setQueryData(
+            queryKey,
+            patchEntryProgress(current, linkId, context.baseline),
+          )
+        }
       }
       // La cadena se aborta entera: lo que quedaba pendiente nunca llegó al
       // servidor, así que mandarlo después volvería a separar la pantalla de
@@ -135,7 +147,7 @@ export function useUpdateEntryProgress(
       }
 
       if (burst.current.timer == null && burst.current.pending == null) {
-        burst.current.snapshot = undefined
+        burst.current.baseline = undefined
       }
       void queryClient.invalidateQueries({ queryKey })
       if (isSynced) {
@@ -148,12 +160,14 @@ export function useUpdateEntryProgress(
     (watchedEpisodes: number) => {
       const current = queryClient.getQueryData<ListEntry[]>(queryKey)
 
-      if (burst.current.snapshot === undefined) {
+      if (burst.current.baseline === undefined) {
         // Cancelar acá y no solo en `onMutate`: entre el primer click y el
         // commit pasan 400 ms, tiempo de sobra para que un refetch en vuelo
         // aterrice y pise el valor optimista.
         void queryClient.cancelQueries({ queryKey })
-        burst.current.snapshot = current
+        burst.current.baseline = current
+          ? findEntry(current, linkId)?.version?.watchedEpisodes
+          : undefined
       }
 
       if (current) {

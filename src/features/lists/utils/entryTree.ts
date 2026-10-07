@@ -141,3 +141,38 @@ export function patchEntryFields(
 
   return changed ? result : entries
 }
+
+/**
+ * Busca un entry por `linkId`, suelto o como hijo de un franchise-link. Existe
+ * para el rollback quirúrgico (tarea 4.17): antes de escribir un patch
+ * optimista, el hook lee del cache el valor que va a pisar, y ese valor es lo
+ * único que su `onError` tiene que devolver.
+ */
+export function findEntry(
+  entries: ListEntry[],
+  linkId: number,
+): ListEntry | undefined {
+  for (const entry of entries) {
+    if (entry.linkId === linkId) return entry
+    const child = entry.childEntries?.find((c) => c.linkId === linkId)
+    if (child) return child
+  }
+  return undefined
+}
+
+/**
+ * Los valores actuales de `entry` para las claves que `patch` va a escribir.
+ * Es el "antes" de `patchEntryFields`: aplicarlo con esa misma función deshace
+ * el patch campo por campo, sin tocar nada más del array.
+ */
+export function pickPatchedFields(
+  entry: ListEntry,
+  patch: Partial<EntryMetaPatch>,
+): Partial<EntryMetaPatch> {
+  const previous: Partial<EntryMetaPatch> = {}
+  if ('notes' in patch) previous.notes = entry.notes
+  if ('rating' in patch) previous.rating = entry.rating
+  if ('startedAt' in patch) previous.startedAt = entry.startedAt
+  if ('finishedAt' in patch) previous.finishedAt = entry.finishedAt
+  return previous
+}
