@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
+import { identityOf, isSameSessionOwner, useSessionStore } from '@/store/sessionStore'
 import { patchEntryProgress } from '@/features/lists/utils/entryTree'
 import { t } from '@/i18n/en'
 import type { ListEntry, VersionEntry } from '@/features/lists/types'
@@ -34,6 +35,8 @@ interface Burst {
 
 interface MutationContext {
   snapshot: ListEntry[] | undefined
+  /** Dueño del snapshot; ver `isSameSessionOwner`. */
+  ownerId: number | null
 }
 
 /**
@@ -92,14 +95,19 @@ export function useUpdateEntryProgress(
 
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey })
-      return { snapshot: burst.current.snapshot }
+      return {
+        snapshot: burst.current.snapshot,
+        ownerId: identityOf(useSessionStore.getState()),
+      }
     },
 
     // Se restaura el array ENTERO, no la fila: mismo criterio que
     // `useUpdateChecklist`. Y el toast está en la CA del plan, no es adorno —
     // sin él la barra vuelve atrás sola y el usuario no sabe por qué.
     onError: (_error, _watchedEpisodes, context) => {
-      if (context?.snapshot) {
+      // Tras un 401 el cache privado se vació: restaurar lo resucitaría con
+      // datos del dueño anterior, así que solo se restaura si es el mismo.
+      if (context?.snapshot && isSameSessionOwner(context.ownerId)) {
         queryClient.setQueryData(queryKey, context.snapshot)
       }
       // La cadena se aborta entera: lo que quedaba pendiente nunca llegó al

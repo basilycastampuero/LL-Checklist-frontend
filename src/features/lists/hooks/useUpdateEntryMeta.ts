@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
+import { identityOf, isSameSessionOwner, useSessionStore } from '@/store/sessionStore'
 import { patchEntryFields } from '@/features/lists/utils/entryTree'
 import { isFeatureEnabled } from '@/lib/features'
 import { t } from '@/i18n/en'
@@ -11,6 +12,8 @@ import type { ListEntry, UpdateLinkRequest } from '@/features/lists/types'
 
 interface MutationContext {
   snapshot: ListEntry[] | undefined
+  /** Dueño del snapshot; ver `isSameSessionOwner`. */
+  ownerId: number | null
 }
 
 /**
@@ -83,11 +86,13 @@ export function useUpdateEntryMeta(checklistId: number, linkId: number) {
           patchEntryFields(snapshot, linkId, patch),
         )
       }
-      return { snapshot }
+      return { snapshot, ownerId: identityOf(useSessionStore.getState()) }
     },
 
     onError: (_error, _patch, context) => {
-      if (context?.snapshot) {
+      // Tras un 401 el cache privado se vació: restaurar lo resucitaría con
+      // datos del dueño anterior, así que solo se restaura si es el mismo.
+      if (context?.snapshot && isSameSessionOwner(context.ownerId)) {
         queryClient.setQueryData(queryKey, context.snapshot)
       }
       toast.error(t.lists.entry.metaError)

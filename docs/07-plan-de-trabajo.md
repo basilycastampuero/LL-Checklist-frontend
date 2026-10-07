@@ -310,6 +310,14 @@ path.
 > estaba 2,4 veces mas lenta que en la linea base (`benchmarkIndex` 3600 →
 > 1500). Detalle y leccion en [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
+> 🔴 **4.14 y 4.15 implementadas, pendientes de PR** (2026-10-07): las dos
+> fugas de privacidad que encontró el `/code-review` del 2026-10-07 (cache
+> privado que sobrevive al cambio de identidad; `notes` expuesta en la ruta
+> pública de entries). **ADR-027** y **ADR-028**. Con 4.14/4.15 la suite está en
+> **362 tests en 64 archivos**. **4.15 tiene la verificación backend pendiente**
+> (curl contra Odoo, que no estaba levantado). Detalle en
+> [17-sprint4-avance.md](./17-sprint4-avance.md).
+>
 > Estado del resto (2026-10-06): 4.7a cerrada y 4.7b bloqueada (falta la URL
 > pública del Odoo de Chano en Railway); 4.8 en curso; 4.9 y 4.10 stretch.
 
@@ -328,6 +336,8 @@ path.
 | 4.11 | ⚪ `Space` no selecciona en el árbol | `useTreeNavigation.ts` maneja `Enter` pero no `Space`, y el patrón ARIA APG Tree View pide las dos; como el `treeitem` es un `<li>` y no un botón, `Space` tampoco dispara el click nativo. Hallazgo #19 de la revisión post-3b ([13-sprint3a-avance.md](./13-sprint3a-avance.md#actualización-2026-09-22--cierre-de-9-a-14-perdidos-y-revisión-nueva-15-a-20)) | Con el foco en un nodo, `Space` lo selecciona igual que `Enter` |
 | 4.12 | ⚪ `useUpdateChecklist` sin `scope` | Dos renombres del mismo nodo en vuelo pueden hacer que el rollback del primero pise el resultado del segundo; se auto-corrige en el refetch de `onSettled`, así que es un parpadeo y no corrupción. Hallazgo #20 de la misma revisión ([13-sprint3a-avance.md](./13-sprint3a-avance.md#actualización-2026-09-22--cierre-de-9-a-14-perdidos-y-revisión-nueva-15-a-20)) | Mismo patrón que ya tiene `useUpdateEntryProgress` desde el Sprint 3b: `scope: { id: ... }` por nodo |
 | 4.13 | 🔴 Punto de entrada de logout en la UI | `useLogout` está completo y testeado desde 3.1 y **ningún componente lo usa**: no hay forma de cerrar sesión desde la app. Hacen falta dos piezas — `SettingsPage` de verdad (hoy es un `PlaceholderPage`) con las secciones de tema y cuenta que pide el doc 06, y un menú en el avatar del header, que hoy es un `<Link>` pelado al perfil. Sin el menú, el único camino a Settings es el banner del perfil propio. Deuda abierta desde el Sprint 3a | Se puede cerrar sesión desde el header y desde Settings; el cache privado queda vacío y la app redirige fuera de las rutas protegidas |
+| 4.14 | 🔴 ✅ (sin PR) El cache privado se ata a la identidad de sesión | El cache de TanStack sobrevivía al cambio de identidad: `lib/http.ts` (interceptor 401) solo llamaba `clearSession()`, `useLogin`/`useRegister` solo hacían `setUser` + `setQueryData(authKeys.me())` y solo `useLogout` hacía `removeQueries`. Si a A se le vence la cookie y B entra en la misma pestaña, B ve durante `staleTime` (60 s) el árbol y los entries de A, y el `libraryIndex` de A marca tarjetas del catálogo de B. Tercer camino, hallado por el arquitecto: el interceptor corre antes del `onError` de la mutación y el rollback optimista re-sembraba los datos de A. Arreglo: `usePrivateCacheReset` (montado en `RootLayout`) escucha el `sessionStore` y limpia `PRIVATE_QUERY_PREFIXES`; guard `isSameSessionOwner` en los tres rollbacks. **ADR-027**. Hallazgo del code-review, no del plan ([17-sprint4-avance.md](./17-sprint4-avance.md)) | Tras un 401 el árbol y los entries quedan vacíos; el login de otro usuario no muestra datos del anterior; el rollback de una mutación en vuelo no repuebla un cache ya vaciado. Cubierto por 6 tests con contraprueba. **Sin verificación visual en navegador** |
+| 4.15 | 🔴 ◐ (implementada, verificación backend pendiente) `notes` fuera de las rutas públicas | `GET /users/:id/checklists/:cid/entries` reutilizaba `_serialize_entry` de `api_lists.py` y emitía `notes` (`link_description`), también en `childEntries`; el brief del proyecto las llama "Notas privadas". El mock tenía la misma fuga. Arreglo: las rutas públicas emiten `notes: null` (la forma del contrato no cambia). Backend: `_PRIVATE_ENTRY_FIELDS`, `_redact_entry`, `_serialize_public_entry` en `api_public.py`; mock: `redactPublicEntry`. **ADR-028**. Cambio local en `ll-odoo` (rama `anitrack/rest-catalog-api`), sin commit ni push | La ruta pública devuelve `notes: null` en todos los niveles y `/me/*` sigue devolviéndolas. Mock: 2 tests con contraprueba. **Backend: `py_compile` y la redacción probada aislada; falta el curl contra Odoo** (comandos en el doc 17) |
 
 ## Definition of Done (toda tarea de UI)
 
