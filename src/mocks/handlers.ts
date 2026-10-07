@@ -563,6 +563,14 @@ export const handlers = [
         )?.entry ?? null
       if (!source?.version)
         return errorResponse('NOT_FOUND', 'Link to sync not found')
+      // Igual que el backend (tarea 4.19): solo se sincronizan copias de la
+      // MISMA versión. Antes de marcar la fuente, para no dejarla a medias.
+      if (source.version.versionId !== body.versionId)
+        return errorResponse(
+          'VALIDATION',
+          'syncWithLinkId must point to a link of the same version',
+          { field: 'syncWithLinkId' },
+        )
       source.version.isSynced = true
     }
 
