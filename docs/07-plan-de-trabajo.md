@@ -303,14 +303,12 @@ path.
 > desvío deliberado del doc 06), stagger de grids con tope de 400 ms, animación
 > de entrada del árbol y `prefers-reduced-motion` medido en Chromium por CDP;
 > revisión visual a 1440 y 360 px en claro y oscuro. **Mergeada en el PR #13**
-> (2026-10-06). **La medición de Lighthouse en producción se intentó y quedó sin
-> resultado válido**: la máquina estaba 2,4 veces más lenta que cuando se tomó la
-> línea base (`benchmarkIndex` 3600 → 1500) y no se recuperó al dejarla ociosa,
-> así que la comparación no se puede rehacer. El efecto de 4.2 sobre el criterio
-> de 4.5 queda **sin verificar**, ni cumplido ni roto. La única evidencia válida
-> es una bisección local: las animaciones cuestan ~30 ms de TBT, no los 420 que
-> aparentaba la medición inválida. Detalle en
-> [17-sprint4-avance.md](./17-sprint4-avance.md).
+> (2026-10-06). **Lighthouse en producción, re-medido el mismo día tras
+> reiniciar WSL: mediana 92 de performance y 100 de accessibility, las tres
+> corridas por encima de 90. 4.2 no rompió el criterio de 4.5.** La primera
+> tanda habia dado 82 y parecia una regresion, pero era invalida: la maquina
+> estaba 2,4 veces mas lenta que en la linea base (`benchmarkIndex` 3600 →
+> 1500). Detalle y leccion en [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
 > Resto del sprint sin empezar.
 

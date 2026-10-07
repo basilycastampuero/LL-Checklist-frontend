@@ -1328,11 +1328,33 @@ medición corrigió, que es trabajo normal. Esta fue distinta y más cara: una
 **medición mal hecha presentada como un hecho**, con tabla, seis corridas y
 apariencia de evidencia. Lo único que evitó el daño fue no actuar sobre ella.
 
+#### Desenlace (2026-10-06, tras reiniciar WSL)
+
+Con la máquina en frío el `benchmarkIndex` volvió a su rango y la medición pasó
+a ser comparable:
+
+| | benchmarkIndex | performance | TBT | LCP |
+|---|---|---|---|---|
+| línea base, antes de 4.2 | 3639 / 3683 / 3545 | 90 / 93 / 93 (mediana **93**) | 30–40 ms | ~2,9 s |
+| con 4.2, máquina en frío | 3061 / 3155 / 3318 | 90 / 92 / 92 (mediana **92**) | 40–50 ms | ~3,0 s |
+
+**4.2 no rompió el criterio de 4.5.** Un punto de diferencia, dentro del rango
+de 3 puntos que ya se había observado entre corridas del mismo build, y las tres
+corridas por encima de 90. El TBT —que la medición inválida mostraba
+multiplicado por trece— quedó prácticamente igual, lo que **corrobora la
+bisección local**: las animaciones cuestan decenas de milisegundos, no cientos.
+
+Matiz honesto: la mediana del `benchmarkIndex` quedó en 3155 contra los 3683 de
+la línea base, un 14% por debajo. No es una coincidencia perfecta, pero está
+lejos del 2,4× que invalidó la tanda anterior, y el TBT casi idéntico sostiene
+la lectura. El criterio se da por cumplido.
+
 ### Lo que queda abierto
 
-- **Medir Lighthouse en producción: intentado el 2026-10-06, SIN RESULTADO
-  VÁLIDO.** Ver "La medición que no se pudo hacer", más arriba. El criterio de
-  4.5 queda **sin verificar** tras 4.2: ni cumplido ni roto.
+- ~~Medir Lighthouse en producción.~~ **Cerrado el 2026-10-06**, tras reiniciar
+  WSL y volver a medir con el `benchmarkIndex` en rango: mediana 92 de
+  performance y 100 de accessibility, las tres corridas por encima de 90. **4.2
+  no rompió el criterio de 4.5.** Detalle en "Desenlace", más arriba.
 - **Dos archivos sobre el techo de ~150 líneas del Definition of Done:**
   `FranchiseCard.tsx` en 156 y `ChecklistTreeItem.tsx` en 205 (ya estaba en
   ~175 antes de esta tarea).
