@@ -103,7 +103,9 @@ mantiene como camino crítico del Sprint 3a.
       [17-sprint4-avance.md](./17-sprint4-avance.md). 4.7 parcial: 4.7a
       (demo mock en Vercel) cerrada, 4.7b bloqueada por falta de la URL
       pública del Odoo de Chano en Railway; 4.8 (README de portafolio) en
-      curso; 4.9 y 4.10 son *stretch*. Auditoría del frontend con sus 26 hallazgos cerrados en
+      curso; 4.9 y 4.10 son *stretch*. **4.14 a 4.21** (hallazgos del
+      `/code-review` del 2026-10-07; ADR-027 a ADR-030) implementadas y
+      verificadas, sin PR. Auditoría del frontend con sus 26 hallazgos cerrados en
       [18-auditoria-frontend-2026-10.md](./18-auditoria-frontend-2026-10.md)
 
 > El Sprint 3 se partió en **3a** (auth + listas) y **3b** (tracking + wizard):

@@ -79,7 +79,7 @@ More detail in [`src/README.md`](./src/README.md).
 
 ## Quality
 
-- **354 tests in 63 files** (Vitest + Testing Library + MSW), plus `typecheck`
+- **366 tests in 64 files** (Vitest + Testing Library + MSW), plus `typecheck`
   and `lint`, all run in CI on every pull request.
 - **Accessibility sweep** over 6 routes × 4 viewport widths × 2 themes, checking
   horizontal overflow, WCAG contrast, accessible names, heading order and focus

@@ -650,6 +650,11 @@ salvo las que empiezan con `ll-odoo/`.
   no por hook lo evita. Test nuevo en `useUpdateEntryProgress.test.tsx` (el
   escenario cruzado, midiendo concurrencia máxima); su primera versión era un
   falso verde, ver sección 9.
+- **Matiz posterior (2026-10-07, ADR-029).** El scope compartido no era el
+  remedio de fondo: el hallazgo #5 del code-review mostró que seguía habiendo
+  rollbacks que borraban el cambio de otro link. Hoy el rollback deshace solo
+  los campos propios sobre el cache actual y el scope solo ordena escrituras
+  del mismo link. El cierre de arriba describe lo que se hizo entonces.
 
 ### F5 — BAJA. El mock deja `isSynced: true` en la copia huérfana al borrar su par
 

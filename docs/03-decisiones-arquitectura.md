@@ -1310,7 +1310,11 @@ llama al listener de forma síncrona, antes de que React renderice. Segunda
 pieza: `isSameSessionOwner` (`sessionStore.ts:54`), un guard en los `onError`
 que restauran un snapshot: `useUpdateChecklist.ts:115`,
 `useUpdateEntryMeta.ts:95` y `useUpdateEntryProgress.ts:110`. Cada `onMutate`
-guarda el `ownerId` junto al snapshot. `authKeys` y `profileKeys` quedan fuera
+guarda el `ownerId` junto al snapshot. *(Actualización 2026-10-07, ADR-029: los
+tres rollbacks ya no restauran un snapshot sino los campos propios sobre el
+cache actual; el guard se mantiene en los tres, hoy en `useUpdateChecklist.ts:124`,
+`useUpdateEntryMeta.ts:112` y `useUpdateEntryProgress.ts:116`. El
+`ownerId` viaja en el contexto de `onMutate`.)* `authKeys` y `profileKeys` quedan fuera
 a propósito (ciclo de vida propio y perfiles públicos).
 
 **Consecuencias.**
@@ -1378,5 +1382,120 @@ memoria conserva la nota para `/me/*`.
 - Supuesto sin confirmar: `rating`, `startedAt` y `finishedAt` (los tres
   `[EXT]`, solo existen en el mock) **siguen siendo públicos**. Si el dueño
   decide lo contrario, se suman a los dos redactores.
-- Pendiente: verificación del backend con curl contra Odoo (doc 17 y
-  `docs-backend/14`).
+- Verificación del backend con curl contra Odoo local hecha el 2026-10-07
+  (doc 17 y `docs-backend/14`; commit local `266fae0`).
+
+---
+
+## ADR-029 — El rollback optimista deshace solo el cambio propio sobre el cache actual
+
+**Estado.** Aceptado (2026-10-07). Hallazgo #5 del `/code-review` del
+2026-10-07 (tarea 4.17). **Matiza** la regla de `CLAUDE.md` nacida de F3/F4 de
+la auditoría (doc 18), "dos hooks que escriben la misma `queryKey` y restauran
+el array entero tienen que compartir el id de scope": esa regla era un remedio
+para el síntoma; este ADR ataca la causa. La parte de la regla que dice que
+`scope` es estático y obliga a pasar el id como argumento del hook **sigue
+vigente**.
+
+**Contexto.** `useUpdateChecklist` (scope `checklist-<id>`) restauraba en su
+`onError` el árbol **entero** de `listKeys.tree()`; `useUpdateEntryMeta` y
+`useUpdateEntryProgress` (scope `entry-<linkId>`) restauraban el array entero
+de `entries(checklistId)`. Mutaciones sobre nodos o links **distintos** tienen
+scopes distintos y corren en paralelo: ambas toman su snapshot antes de que la
+otra termine, y si la primera falla su rollback restaura un estado anterior a
+las dos y borra el cambio optimista de la segunda (que sí se había guardado)
+hasta el refetch de `onSettled`. El bug no era falta de orden: era restaurar
+un estado que **ya no es verdad**.
+
+**Alternativas consideradas.**
+
+1. **Un scope compartido por `queryKey`** (todas las mutaciones del árbol, o de
+   las entries de una carpeta, en una sola cola). Descartada por tres razones:
+   (1) en `useUpdateEntryProgress` el snapshot se toma en `setProgress`, fuera
+   de `onMutate`, y un scope compartido no cambia cuándo se toma; (2) serializa
+   operaciones independientes, y el cambio optimista de B deja de ser
+   instantáneo cuando A está en vuelo; (3) no toca la causa, que es restaurar un snapshot
+   viejo.
+2. **Rollback quirúrgico (elegida).**
+
+**Decisión.** Cada hook guarda en `onMutate` los valores previos de **solo lo
+que patchea** y su `onError` los reaplica con el mismo helper del optimistic
+update, sobre el cache **actual**:
+
+- `useUpdateChecklist`: `pickPatchedFields` (`utils/checklistTree.ts:98`) y
+  `patchChecklistNode` sobre el árbol actual.
+- `useUpdateEntryMeta`: `findEntry`, `pickPatchedFields` y `patchEntryFields`
+  (`utils/entryTree.ts`).
+- `useUpdateEntryProgress`: `Burst.snapshot` (el array) pasa a `Burst.baseline`
+  (el `watchedEpisodes` previo a la ráfaga) y el rollback usa
+  `patchEntryProgress`, que ajusta también el agregado del padre (ADR-021).
+
+El guard `isSameSessionOwner` (ADR-027) se mantiene. Debounce, flush al
+desmontar, cadena de un commit en vuelo y scope `entry-${linkId}` no cambian.
+Ningún otro hook hace `setQueryData` optimista sobre esas keys (create/delete
+solo invalidan).
+
+**Consecuencias.**
+
+- Regla para todo hook optimista nuevo: **nunca restaurar un snapshot del
+  array o árbol entero**; guardar lo que se cambió y deshacer eso sobre el
+  cache actual, con el guard de ADR-027.
+- El `scope` pasa a **ordenar las escrituras del mismo nodo o link** (dos
+  ediciones del mismo nodo no se solapan en el servidor); ya no es el
+  mecanismo que protege a otros nodos del rollback.
+- **Limitaciones conocidas:** el rollback de progreso vuelve al valor previo a
+  **toda** la ráfaga aunque el primer commit se hubiera aceptado (`onSettled`
+  lo corrige con el refetch; no es regresión); con el cache vacío en el primer
+  click no hay rollback visual (igual que antes).
+- Tests nuevos, rojos antes del fix: uno en `useUpdateChecklist.test.tsx`
+  (nodo 1 falla tarde, nodo 4 sale bien) y dos en
+  `useUpdateEntryProgress.test.tsx` (meta contra meta, progreso contra meta).
+
+---
+
+## ADR-030 — Las rutas de escritura validan la forma del body en el borde y responden `422`, nunca `500`
+
+**Estado.** Aceptado (2026-10-07). Hallazgo #7 del `/code-review` del
+2026-10-07 (tarea 4.18). Se registra como ADR porque es una política que
+alcanza a **toda** escritura del backend, presente y futura (B9 incluida), y no
+a un endpoint.
+
+**Contexto.** `_parse_json_body` (`api_common.py`) devolvía cualquier JSON
+válido, y cada controlador hacía `body.get(...)` y `.strip()` sin comprobar
+tipos. Con 25 bodies hostiles contra el Odoo local: `[]`, `"hola"` o `123` →
+500 HTML; `{"login":123}` o `{"checklistId":true}` → 500; `{"description":
+{"x":1}}` → 201 guardando `"{'x': 1}"`; `{"isPublished":"false"}` → 201 con
+`isPublished` en true; `PATCH [1,2]` → 200. Es la misma clase que el #22 del
+doc 18 (500 sin envelope), ahora del lado de la entrada, y alcanzable sin
+autenticar en login y register. El frontend no lo dispara nunca (manda tipos
+estrictos), así que solo lo provoca un cliente hostil o un bug futuro.
+
+**Alternativas consideradas.**
+
+1. **Un `isinstance`/`try` por ruta.** Descartada: es lo que había en la
+   práctica y se olvida en la ruta nueva.
+2. **Un esquema declarativo completo** (librería de validación o un decorador).
+   Descartada por ahora: dependencia y reescritura de todos los controladores
+   para un riesgo bajo; los helpers cubren lo que hace falta.
+3. **Capturar la excepción y traducirla a 500 con envelope.** Descartada: sigue
+   siendo un 500 por un error del cliente y no dice qué campo falló.
+4. **Validar la forma en el borde con dos helpers (elegida).**
+
+**Decisión.** Dos piezas en `api_common.py`: `_parse_json_body` devuelve `None`
+si el JSON no es un **objeto** (las rutas ya traducían `None` a `422`;
+`INVALID_BODY_MESSAGE`), y `_body_type_error(body, spec)` valida el **tipo** de
+las claves presentes (`{"clave": str | bool | int}`) y responde `422
+VALIDATION` con `field`. `null` o ausente pasa (cada ruta decide qué significa:
+en un PATCH `description: null` es borrarla); `bool` no vale como `int`. Los
+booleanos también se validan. Aplicado en login, register, `POST`/`PATCH
+/me/checklists`, `POST /me/links`; `PATCH /me/links` solo necesitaba el chequeo
+de objeto. Contrato: doc 04, "Regla general de escritura".
+
+**Consecuencias.**
+
+- Toda ruta de escritura nueva pasa por `_parse_json_body` y declara su `spec`
+  de tipos; es la única defensa, sin red de seguridad detrás.
+- Solo valida **tipo**, no presencia ni contenido: los rangos y los valores
+  válidos siguen en cada ruta.
+- No hay test automatizado del backend: la verificación fue con curl, antes y
+  después (doc 17).
