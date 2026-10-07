@@ -5,9 +5,10 @@
 > #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
 > 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
 > auditoría cerrados (2026-10-01); 4.7a (deploy de la demo mock) cerrada y
-> mergeada (2026-10-02); 4.5 (performance) en curso con criterio cumplido
-> pendiente de re-medición (2026-10-06); 4.2 (animaciones) implementada y
-verificada, sin commitear (2026-10-06). 3.3b y B9 (deuda del
+> mergeada (2026-10-02); 4.5 (performance) cerrada, con el criterio re-medido
+> en producción (PR #10 y #11, 2026-10-06); 4.2 (animaciones) mergeada en el
+> PR #13 y su medición de Lighthouse re-hecha en válido (2026-10-06; el PR #14
+> registró la medición inválida). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -960,13 +961,12 @@ resultado se descartó entero.
   (Lighthouse >= 90 perf en `/catalog`).
 - **Detalle cosmético sin consecuencia:** `/mock-images/` (directorio pelado)
   devuelve `index.html` por el catch-all. Nada pide un directorio.
-- **Decisión abierta (del dueño, no hallazgo):** el proyecto en Vercel quedó
-  bajo el scope `woo-ka`, la cuenta **secundaria** de GitHub, mientras el repo
-  está en la **principal** (`basilycastampuero/LL-Checklist-frontend`). Si la
-  URL va al README como pieza de portafolio (4.8), probablemente conviene que
-  esté del lado de la cuenta con la que muestra su trabajo. Moverla implica
-  recrear el proyecto en Vercel y cambiar la URL: es más barato decidirlo antes
-  de 4.8.
+- **Decisión del dueño (cerrada el 2026-10-06, no hallazgo):** el proyecto en
+  Vercel quedó bajo el scope `woo-ka`, la cuenta **secundaria** de GitHub,
+  mientras el repo está en la **principal**
+  (`basilycastampuero/LL-Checklist-frontend`). Se evaluó moverlo (implicaba
+  recrear el proyecto en Vercel y cambiar la URL), y el dueño decidió que **se
+  queda como está**: no le preocupa que la demo viva en `woo-ka`.
 
 ## Actualización (2026-10-06) — Tarea 4.5 (performance): el criterio ya se cumplía, la hipótesis era falsa
 
@@ -1175,7 +1175,7 @@ primera fue el truco de las dos pasadas con `--user-data-dir` en 4.7a.
 
 ## Actualización (2026-10-06) — Tarea 4.2: animaciones
 
-Código hecho y verificado, **sin commitear**. Decisión de peso en
+Código hecho y verificado; **mergeada en el PR #13** (2026-10-06). Decisión de peso en
 [ADR-026](./03-decisiones-arquitectura.md): las transiciones de ruta usan las
 View Transitions nativas y no `motion`, que es lo que dice el doc 06.
 

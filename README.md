@@ -1,164 +1,235 @@
 # LL Checklist — Frontend
 
-Frontend en React para LL Checklist: un catálogo de juegos/anime con checklists
-personales y seguimiento de progreso de episodios. Backend en Odoo (proyecto de
-Chano / `chanochambure`, repo Git propio en `../ll-odoo/`, intocable); este
-repositorio es el proyecto frontend completo, incluida su documentación.
+[![CI](https://github.com/basilycastampuero/LL-Checklist-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/basilycastampuero/LL-Checklist-frontend/actions/workflows/ci.yml)
 
-> Toda la documentación vive en este repo: visión general, contrato de API y
-> decisiones del frontend en [`docs/`](./docs/README.md); análisis del backend
-> de Chano y preguntas pendientes en [`docs-backend/`](./docs-backend/README.md).
+A React front end for tracking anime and games: browse a shared catalog, build
+nested checklists, and follow episode-by-episode progress.
+
+**[→ Live demo](https://ll-checklist-frontend.vercel.app)** — runs entirely on
+mocked data, no backend required. Sign in with **`alex@example.com`** /
+**`password123`** to see the checklists and progress tracking.
+
+![Home](./docs/images/home-dark.png)
+
+---
+
+## What it does
+
+- **Shared catalog** of franchises, contents and versions, with filters by type,
+  genre, platform and year, all driven from the URL so any view is shareable.
+- **Nested checklists** as an accessible tree: create, rename, move and delete
+  folders, with full keyboard navigation.
+- **Episode progress** with optimistic updates — the stepper responds
+  immediately and rolls back if the server rejects the change.
+- **Linked copies**: adding the same version to several lists keeps their
+  progress in sync.
+- **Public profiles** for lists marked as published.
+- Light and dark themes, a mobile layout with bottom tabs, and offline detection.
+
+The catalog, filtered entirely from the URL:
+
+![Catalog](./docs/images/catalog-dark.png)
+
+A list with its entries — note the per-season grouping and the episode steppers:
+
+![My Lists](./docs/images/my-lists-dark.png)
+
+<img src="./docs/images/catalog-mobile.png" width="280" alt="Catalog on a phone, with bottom tab navigation">
+
+On phones the navigation moves to a bottom tab bar; it is the layout the app was
+designed around, not an afterthought.
 
 ## Stack
 
-React 19 · TypeScript strict · Vite · React Router 7 · TanStack Query 5 ·
-Zustand · Tailwind CSS 4 · shadcn/ui · Zod · Axios · MSW · Vitest + RTL.
+React 19 · TypeScript (strict, plus `noUncheckedIndexedAccess` and
+`verbatimModuleSyntax`) · Vite · React Router 7 · TanStack Query 5 · Zustand ·
+Zod · Axios · Tailwind CSS 4 · shadcn/ui · Motion · MSW · Vitest + Testing
+Library.
 
-## Requisitos
+## Architecture
 
-- Node.js 20+ (probado con Node 24)
-- npm 10+
+The structure is feature-based (`src/features/<feature>/{components,hooks,services,types}`),
+with one rule that everything else hangs off: **components → hooks → services**.
+No component talks to the network, and no `fetch` lives in a `useEffect`.
 
-## Scripts
+Three decisions are worth calling out, because they shaped the rest:
 
-| Script | Qué hace |
+**Zod validates every response, and that is the drift detector.** The backend is
+a separate Odoo project owned by someone else, so the API contract can move
+without warning. Each service parses its response against a schema before
+returning it, which means a shape change fails loudly at the boundary instead of
+surfacing three layers up as an unexplained `undefined`. One audit finding came
+from the opposite mistake — a schema that was *stricter* than the contract and
+turned a cosmetic backend value into a full page crash. The rule that came out of
+it: Zod validates the shape of a response, not presentation conventions.
+
+**The whole app runs on mocks.** MSW serves 100% of the API during development
+and in the deployed demo, which is what makes a backend-free portfolio build
+possible. It also has a cost worth naming: a mock only ever produces the happy
+path, so it will not tell you that the real backend can emit a null date or an
+error response without the agreed envelope. Several findings lived exactly in
+that gap.
+
+**Decisions are written down as ADRs.** Twenty-six of them so far, in
+[`docs/03-decisiones-arquitectura.md`](./docs/03-decisiones-arquitectura.md),
+each with the alternatives that were rejected and why.
+
+More detail in [`src/README.md`](./src/README.md).
+
+## Quality
+
+- **354 tests in 63 files** (Vitest + Testing Library + MSW), plus `typecheck`
+  and `lint`, all run in CI on every pull request.
+- **Accessibility sweep** over 6 routes × 4 viewport widths × 2 themes, checking
+  horizontal overflow, WCAG contrast, accessible names, heading order and focus
+  rings. The tree, the wizard and the steppers are keyboard operable, and
+  `prefers-reduced-motion` is honoured.
+- **Lighthouse on the live demo**: 92 performance, 100 accessibility.
+- A full code audit in October 2026 produced **26 findings, all closed**, each
+  one documented with its reproduction scenario and the file and line it lived
+  in — see [`docs/18-auditoria-frontend-2026-10.md`](./docs/18-auditoria-frontend-2026-10.md).
+
+What is *not* covered, stated plainly: no screen-reader testing with NVDA or
+VoiceOver has been done, and a handful of paths are verified by review rather
+than by the test suite. Both are tracked in the docs.
+
+## Documentation
+
+Everything lives in this repository.
+
+| | |
 |---|---|
-| `npm run dev` | Levanta la app con MSW (datos mock). |
-| `npm run build` | Type-check + build de producción. |
-| `npm run preview` | Sirve el build. |
-| `npm run lint` | ESLint (flat config). |
+| [`docs/`](./docs/README.md) | Scope, API contract, domain model, UI design, work plan, ADRs, and a log per sprint. |
+| [`docs-backend/`](./docs-backend/README.md) | Analysis of the Odoo backend, open questions for its author, and the endpoint-by-endpoint status of the REST API built for it. |
+| [`docs/18-auditoria-frontend-2026-10.md`](./docs/18-auditoria-frontend-2026-10.md) | The audit: 26 findings with scenario, location and the false green that hid each one. |
+
+The documentation is written in Spanish; this README is the English entry point.
+
+## Getting started
+
+Requires Node.js 22, pinned in `.nvmrc` and in `package.json`'s `engines`.
+
+```bash
+npm install
+npm run dev        # http://localhost:5173, backed by MSW
+```
+
+No backend, no environment file, no database. The mock serves the catalog, the
+session and the lists.
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server with MSW. |
+| `npm run build` | Type-check, then production build. |
+| `npm run preview` | Serve the build. |
+| `npm run test` | Vitest, single pass — exactly what CI runs. |
 | `npm run typecheck` | `tsc --noEmit`. |
-| `npm run test` | Vitest (una pasada). |
-| `npm run format` | Prettier sobre `src/`. |
-| `npm run seed:odoo` | Carga el catálogo de prueba en un Odoo local (ver [abajo](#seed-del-catálogo-en-odoo-local)). Necesita el backend levantado. |
+| `npm run lint` | ESLint (flat config). |
+| `npm run format` | Prettier over `src/`. |
+| `npm run seed:odoo` | Load the mock catalog into a local Odoo (see below). |
 
-## Modo de datos
+### Data mode
 
-Durante el desarrollo la app corre 100% contra **MSW** (mocks), sin backend
-(ADR-001). Variables de entorno:
-
-| Variable | Default | Uso |
+| Variable | Default | Meaning |
 |---|---|---|
-| `VITE_API_MODE` | `mock` | `mock` usa MSW; `real` pega al backend por proxy. |
-| `VITE_API_BASE_URL` | `/api/v1` | Prefijo del contrato. |
-| `VITE_ODOO_URL` | `http://localhost:8069` | Destino del proxy de Vite en modo `real`. |
+| `VITE_API_MODE` | `mock` in dev, `real` in a production build | `mock` uses MSW; `real` proxies to the backend. |
+| `VITE_API_BASE_URL` | `/api/v1` | Contract prefix. |
+| `VITE_ODOO_URL` | `http://localhost:8069` | Proxy target in `real` mode. |
 
-## Arquitectura
+The production default is `real` on purpose: a deployment that forgets the
+variable should not quietly serve a fake API. The demo sets `mock` explicitly in
+`vercel.json`.
 
-Estructura **feature-based** (`src/features/*`) con separación
-components → hooks → services → API. Ver [`src/README.md`](./src/README.md).
+To exercise the UI's error states without touching code, append
+`?mockError=INTERNAL` to the URL — any code from the contract works.
 
-## Docker
+<details>
+<summary><b>Running with Docker</b> — no Node needed on the host</summary>
 
-No hace falta tener Node instalado en el host; todo corre en contenedores.
-Los comandos se ejecutan desde la **raíz del workspace** (donde vive
-`docker-compose.yml`), no desde esta carpeta.
-
-```bash
-# Dev server con hot-reload en :5173 (contra MSW, por defecto)
-docker compose up frontend
-
-# Tests en watch mode, en un contenedor aparte
-docker compose --profile test up frontend-test
-
-# Un comando suelto dentro del contenedor (lint, build, etc.)
-docker compose run --rm frontend npm run lint
-```
-
-El código fuente se monta como bind mount (`./ll-checklist-frontend:/app`), así que
-los cambios se reflejan al instante sin reconstruir la imagen; `node_modules`
-vive en un volumen nombrado aparte para no mezclarlo con el del host.
-
-### Probar contra el backend real
+Commands run from the **workspace root**, where `docker-compose.yml` lives, not
+from this folder.
 
 ```bash
-docker compose --profile backend up
+docker compose up frontend                      # dev server on :5173, against MSW
+docker compose --profile test up frontend-test  # tests in watch mode
+docker compose run --rm frontend npm run lint   # one-off command
 ```
 
-Esto además levanta `odoo` (usando `../ll-odoo/Dockerfile` tal cual, sin
-modificarlo) y una `db` de Postgres. Para que el frontend le pegue a ese Odoo en
-vez de a MSW, exportar antes de levantar `frontend`:
+The source is bind-mounted, so changes apply instantly; `node_modules` lives in a
+named volume so it never mixes with the host's.
 
-```bash
-VITE_API_MODE=real VITE_ODOO_URL=http://odoo:8069 docker compose up frontend
-```
-
-(`odoo` es el nombre del servicio en la red interna de Compose — no
-`localhost`, porque el proxy corre dentro del contenedor del frontend.)
-
-Odoo queda accesible en [http://localhost:8069](http://localhost:8069), DB
-`anitrack`, login `admin` / password `admin` (credenciales por defecto que
-genera Odoo al crear la base por línea de comandos — cambiarlas no es
-necesario para un entorno local).
-
-**Nota sobre `docker-init/odoo-dev-entrypoint.sh`:** el `entrypoint.sh`
-original de `ll-odoo/` usa `--init=all`, que en Odoo **no** instala todos los
-módulos disponibles — solo `base` y los módulos con `auto_install=True`
-(`web`, `bus`, etc.). Los módulos propios del proyecto (`ll_checklist`,
-`ll_oauth`, `ll_webpage`) tienen `auto_install=False`, así que con el
-entrypoint original nunca quedaban instalados. Por eso el servicio `odoo` en
-`docker-compose.yml` monta un entrypoint propio
-(`docker-init/odoo-dev-entrypoint.sh`, fuera de `ll-odoo/`) que instala esos
-tres módulos explícitamente con `-i`; es idempotente, así que reiniciar el
-contenedor es rápido (~2s) una vez que la base ya existe — nada que ver con
-la lentitud que reporta Chano en Railway, que usa el `entrypoint.sh` original
-tal cual.
-
-**Nota sobre bind mount vs. copy:** a diferencia de `frontend` (bind mount,
-cambios instantáneos), el servicio `odoo` **copia** `odoo-modules/` dentro de
-la imagen — no hay bind mount para ese código en `docker-compose.yml`. Editar
-algo dentro de `ll-odoo/odoo-modules/` no se refleja en el contenedor sin
-reconstruir la imagen (`docker compose build odoo` o `docker compose up
---build odoo`); una alternativa más rápida para iterar puntualmente es
-inyectar el archivo cambiado con `docker cp` seguido de `odoo -u <módulo>
---stop-after-init` y reiniciar el contenedor.
-
-**Nota sobre WSL:** si Docker Desktop corre en Windows y la integración WSL
-para tu distro está desactivada (Docker Desktop → Settings → Resources → WSL
-Integration), el comando `docker` no existe dentro de WSL — hay que invocar
-el CLI de Windows directamente
-(`/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe`) o activar la
-integración para volver al flujo normal de `docker compose`.
-
-### Seed del catálogo en Odoo local
-
-`npm run seed:odoo` (`scripts/seed-odoo.mjs`, Node puro, sin dependencias)
-carga en un Odoo local el mismo dataset que sirve MSW: 10 franquicias, 14
-contenidos, 19 versiones, 11 géneros, 5 plataformas, 6 compañías, 3 países,
-11 imágenes. Requiere el backend levantado (`docker compose --profile
-backend up`, o una instalación local equivalente).
-
-Sin flags es **idempotente** (busca antes de crear, no duplica en corridas
-sucesivas). `--reset` borra primero las franquicias del seed y las vuelve a
-crear.
-
-Config por variables de entorno (todas opcionales, con default apuntando al
-Odoo local de este `docker-compose.yml`):
-
-| Variable | Default |
-|---|---|
-| `ODOO_URL` | `http://localhost:8069` |
-| `ODOO_DB` | `anitrack` |
-| `ODOO_USER` | `admin` |
-| `ODOO_PASSWORD` | `admin` |
-
-```bash
-npm run seed:odoo            # idempotente
-npm run seed:odoo -- --reset # borra y re-siembra las franquicias del seed
-```
-
-Sirve como insumo para probar contra el backend real (ver
-[docs/11-spike-integracion-real.md](./docs/11-spike-integracion-real.md)):
-sin datos cargados, los endpoints de catálogo responden vacío y no prueban
-nada.
-
-### Build de producción (nginx)
+**Production image (nginx):**
 
 ```bash
 docker build --target production -t ll-checklist-frontend .
 docker run -p 8080:80 ll-checklist-frontend
 ```
 
-Sirve el bundle estático con `nginx` y fallback de rutas para React Router
-(`docker/nginx.conf`). Este stage es el que se usaría en el deploy real
-(Sprint 4, doc 07).
+Serves the static bundle with route fallback for React Router
+(`docker/nginx.conf`).
+
+**On WSL:** if Docker Desktop runs on Windows with WSL integration disabled, the
+`docker` command does not exist inside WSL. Either enable the integration or call
+the Windows CLI directly at
+`/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe`.
+
+</details>
+
+<details>
+<summary><b>Running against the real Odoo backend</b></summary>
+
+```bash
+docker compose --profile backend up
+VITE_API_MODE=real VITE_ODOO_URL=http://odoo:8069 docker compose up frontend
+```
+
+`odoo` is the service name on Compose's internal network — not `localhost`,
+because the proxy runs inside the frontend container. Odoo ends up on
+[localhost:8069](http://localhost:8069), database `anitrack`, login
+`admin` / `admin`.
+
+**Why there is a custom entrypoint:** the backend's own `entrypoint.sh` uses
+`--init=all`, which in Odoo does *not* install every available module — only
+`base` and those with `auto_install=True`. The project's own modules
+(`ll_checklist`, `ll_oauth`, `ll_webpage`) are `auto_install=False`, so they were
+never installed. `docker-init/odoo-dev-entrypoint.sh` installs those three
+explicitly. It is idempotent, so restarting once the database exists takes a
+couple of seconds.
+
+**Bind mount vs copy:** unlike the frontend, the `odoo` service *copies*
+`odoo-modules/` into the image. Editing backend code is not reflected without
+rebuilding (`docker compose build odoo`).
+
+</details>
+
+<details>
+<summary><b>Seeding the catalog into a local Odoo</b></summary>
+
+`npm run seed:odoo` (`scripts/seed-odoo.mjs`, plain Node, no dependencies) loads
+the same dataset MSW serves: 10 franchises, 14 contents, 19 versions, 11 genres,
+5 platforms, 6 companies, 3 countries, 11 images. It needs the backend running.
+
+It is idempotent — it looks before creating. `--reset` deletes the seeded
+franchises first and recreates them.
+
+```bash
+npm run seed:odoo
+npm run seed:odoo -- --reset
+```
+
+Configurable through `ODOO_URL`, `ODOO_DB`, `ODOO_USER` and `ODOO_PASSWORD`, all
+defaulting to the local Compose setup. Without seeded data the catalog endpoints
+answer empty and prove nothing — see
+[`docs/11-spike-integracion-real.md`](./docs/11-spike-integracion-real.md).
+
+</details>
+
+## About the backend
+
+The backend is an Odoo project owned by another developer and lives in its own
+repository. This front end consumes a REST API under `/api/v1` that was built for
+it as part of this work; its endpoint-by-endpoint status is documented in
+[`docs-backend/14-resumen-implementacion-api.md`](./docs-backend/14-resumen-implementacion-api.md).
+
+The deployed demo does not touch that backend at all — it runs on MSW, which is
+why the link above works without any server behind it.

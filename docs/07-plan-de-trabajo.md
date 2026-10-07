@@ -284,7 +284,7 @@ path.
 > (rewrites de `/api` y `/web/image` al Odoo real, sin URL pública de Railway).
 > Detalle en [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
-> ◐ **4.5 en curso** (2026-10-06): el criterio ya se cumplía en producción
+> ✅ **4.5 cerrada** (2026-10-06; código en el PR #10, cierre documental en el PR #11): el criterio ya se cumplía en producción
 > **antes de tocar código** (Lighthouse 92 perf / 100 a11y en `/catalog`). La
 > hipótesis de partida (el `await` de MSW en `main.tsx` causaba el Load Delay
 > del LCP) **resultó falsa**: el A/B local no mostró mejora atribuible. Se
@@ -298,7 +298,7 @@ path.
 > una sola corrida no sirve para comparar builds. Detalle en
 > [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
-> ◐ **4.2 implementada y verificada, sin commitear** (2026-10-06): transición
+> ✅ **4.2 implementada y verificada** (2026-10-06): transición
 > de ruta con las View Transitions nativas y no con `motion` (**ADR-026**,
 > desvío deliberado del doc 06), stagger de grids con tope de 400 ms, animación
 > de entrada del árbol y `prefers-reduced-motion` medido en Chromium por CDP;
@@ -310,15 +310,16 @@ path.
 > estaba 2,4 veces mas lenta que en la linea base (`benchmarkIndex` 3600 →
 > 1500). Detalle y leccion en [17-sprint4-avance.md](./17-sprint4-avance.md).
 >
-> Resto del sprint sin empezar.
+> Estado del resto (2026-10-06): 4.7a cerrada y 4.7b bloqueada (falta la URL
+> pública del Odoo de Chano en Railway); 4.8 en curso; 4.9 y 4.10 stretch.
 
 | # | Tarea | Detalle | CA |
 |---|---|---|---|
 | 4.1 | ⚠️ Integración backend real | Adaptador en `lib/api/`; apagar MSW por env (`VITE_API_MODE=real\|mock`) | Flujos core contra Odoo real |
-| 4.2 | ◐ Animaciones (sin commitear) | Transiciones de ruta, stagger, layout animations, reduced-motion. **Nota (2026-10-06):** las rutas usan View Transitions nativas, no `motion` ([ADR-026](./03-decisiones-arquitectura.md)); el stagger tiene tope de 8 posiciones; el árbol anima solo al expandir y **no** se animó `layout` en los hermanos (por la semántica ARIA); ver doc 17. Pendiente: Lighthouse en producción tras el merge | Revisión visual completa. **Cumplida** (2026-10-06): 1440 y 360 px, claro y oscuro |
+| 4.2 | ✅ Animaciones | Transiciones de ruta, stagger, layout animations, reduced-motion. **Nota (2026-10-06):** las rutas usan View Transitions nativas, no `motion` ([ADR-026](./03-decisiones-arquitectura.md)); el stagger tiene tope de 8 posiciones; el árbol anima solo al expandir y **no** se animó `layout` en los hermanos (por la semántica ARIA); ver doc 17. Lighthouse en producción re-medido tras el merge (PR #13): mediana 92 de performance, 100 de accessibility | Revisión visual completa. **Cumplida** (2026-10-06): 1440 y 360 px, claro y oscuro |
 | 4.3 | Barrido responsive + a11y | 360/768/1024/1440; teclado; contraste | Checklist en PR |
 | 4.4 | Manejo de errores global | ErrorBoundary por página, retry, 404, offline banner | Errores inyectados por MSW demostrables |
-| 4.5 | ◐ Performance (en curso) | code-splitting por ruta (ya), `React.lazy` de modales pesados, memo en grids, bundle analyze. **Nota (2026-10-06):** nada de esto hizo falta; el criterio ya pasaba (92/100 en producción). Queda abierta la oportunidad `unused-javascript` (600 ms / 98 KB) | Lighthouse ≥ 90 perf/a11y en `/catalog`. **Cumplido y re-verificado en producción tras el PR #10** (2026-10-06): tres corridas, performance 90/93/93 (mediana 93), a11y 100 en las tres |
+| 4.5 | ✅ Performance | code-splitting por ruta (ya), `React.lazy` de modales pesados, memo en grids, bundle analyze. **Nota (2026-10-06):** nada de esto hizo falta; el criterio ya pasaba (92/100 en producción). Queda abierta la oportunidad `unused-javascript` (600 ms / 98 KB) | Lighthouse ≥ 90 perf/a11y en `/catalog`. **Cumplido y re-verificado en producción tras el PR #10** (2026-10-06): tres corridas, performance 90/93/93 (mediana 93), a11y 100 en las tres |
 | 4.6 | Tests | Unit (utils, adapters, schemas) + componentes críticos (stepper, wizard, filterbar) + 1 flujo integración (agregar a lista) | Coverage razonable en features core, CI verde |
 | 4.7 | ◐ Deploy (parcial) | Vercel/Netlify + rewrites `/api` y `/web/image` → Odoo (ADR-005). **4.7a ✅** (2026-10-02, PR #9): demo en modo mock en Vercel con `vercel.json` (fallback de SPA, `VITE_API_MODE=mock`, headers del service worker) y `engines.node = 22.x`. **4.7b ⛔ bloqueada**: rewrites al Odoo real; el Odoo de Chano va a vivir self-hosted en Railway sin staging remoto ([08 §3](../docs-backend/08-preguntas-backend.md)), sin URL pública no hay a dónde proxear | URL pública funcionando (4.7a: cumplido para la demo mock; 4.7b: pendiente) |
 | 4.8 | README de portafolio | Screenshots/GIF, stack, arquitectura, link a docs, demo con cuenta seed | Redactado en inglés |
