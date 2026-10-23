@@ -724,6 +724,14 @@ lectura de código) dos de los hallazgos anteriores y sumar dos datos nuevos:
       silencioso; tenerlo en git da historial y diff, y el adaptador puede citar
       la versión contra la que fue escrito.
 
+    - 13.2. ¿Las notas de un entry (`notes`, `link_description`) son públicas
+      cuando la checklist está publicada?
+      → Respuesta: **[FE]** No (2026-10-07, ADR-028). Las rutas públicas emiten
+      `notes: null` en todos los niveles; la clave sigue presente para no
+      romper el schema compartido. Lo implementó `api_public.py` en `ll-odoo`
+      (cambio local, sin verificar con curl). Rating y fechas `[EXT]` siguen
+      públicos como supuesto sin confirmar por el dueño.
+
 14. **Seed/datos de prueba**: ¿podés cargar 5–10 franquicias reales en staging
     para integración? (Yo te paso mi seed de MSW como referencia si sirve.)
     → Respuesta: **[FE]** Como no hay staging remoto (tu respuesta 3.2), para

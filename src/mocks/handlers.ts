@@ -183,6 +183,23 @@ function syncedSiblings(
     )
 }
 
+/**
+ * Un entry tal como lo ve un visitante: las notas son del dueño aunque la
+ * lista esté publicada (ADR-028), así que salen `null` en todos los niveles.
+ * Es copia: el estado en memoria conserva la nota para `/me/*`. El backend
+ * hace lo mismo en `api_public.py`; si el mock no redactara, la demo seguiría
+ * "funcionando" mientras ocultaba la fuga (hallazgo #2, 2026-10-07).
+ */
+function redactPublicEntry(entry: ListEntry): ListEntry {
+  return {
+    ...entry,
+    notes: null,
+    ...(entry.childEntries && {
+      childEntries: entry.childEntries.map(redactPublicEntry),
+    }),
+  }
+}
+
 export const handlers = [
   // ---- Master data ----
   http.get(url('/genres'), async ({ request }) => {
@@ -781,7 +798,9 @@ export const handlers = [
       // checklist privada es adivinable a partir de los públicos vecinos.
       if (!node?.isPublished)
         return errorResponse('NOT_FOUND', 'Checklist not found')
-      return HttpResponse.json({ items: entriesByChecklist[node.id] ?? [] })
+      return HttpResponse.json({
+        items: (entriesByChecklist[node.id] ?? []).map(redactPublicEntry),
+      })
     },
   ),
 ]

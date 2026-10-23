@@ -1265,3 +1265,118 @@ anularía todo este ADR. **Tiene que resolverse dentro de los chunks lazy, con
 `useReducedMotion()` en cada componente que anima.** Así está hecho hoy en
 `FranchiseCard` y `ChecklistTreeItem`. Un componente `motion` nuevo tiene que
 traer su propia guarda.
+
+---
+
+## ADR-027 — El cache privado se ata a la identidad de sesión, no a cada punto de entrada
+
+**Estado.** Aceptado (2026-10-07). Hallazgo del `/code-review` del 2026-10-07
+(tarea 4.14).
+
+**Contexto.** El cache de TanStack Query y el `sessionStore` son dos estados
+independientes, y nada los ataba. Cuando la identidad cambiaba por un camino
+distinto del logout, el cache privado seguía en memoria:
+`lib/http.ts` (interceptor 401) solo llamaba `clearSession()`;
+`useLogin`/`useRegister` solo hacían `setUser` + `setQueryData(authKeys.me())`;
+solo `useLogout` hacía `removeQueries`. Escenario: a A se le vence la cookie,
+el 401 lo manda a `/login`, B entra en la misma pestaña y durante `staleTime`
+(60 s) ve el árbol y los entries de A, y el `libraryIndex` de A marca tarjetas
+del catálogo de B. Un tercer camino lo encontró el arquitecto: el interceptor
+corre **antes** del `onError` de la mutación, así que con el cache ya vaciado el
+rollback optimista (`setQueryData(snapshot)`) volvía a sembrar los datos de A.
+
+**Alternativas consideradas.**
+
+1. **`userId` en las `queryKey` privadas.** Descartada: el radio de cambio es
+   toda la factory `listKeys` y sus invalidaciones; rompe el `scope` compartido
+   entre hooks que escriben la misma clave (F3/F4 de la auditoría, doc 18); y
+   los datos del usuario anterior seguirían en memoria hasta el `gcTime`.
+2. **`queryClient.clear()` ante el cambio.** Descartada: borra también el
+   catálogo público (que no es privado) y `authKeys`, con lo que `useMe` pediría
+   `/auth/me` al instante.
+3. **Limpiar en el interceptor 401.** Descartada: el interceptor no conoce el
+   `QueryClient`, y aunque lo conociera no cubre el login de otro usuario.
+4. **Un hook que escucha la identidad (elegida).**
+
+**Decisión.** `src/features/auth/hooks/usePrivateCacheReset.ts`, montado en
+`src/components/layout/RootLayout.tsx:19`, se suscribe al `sessionStore`. Cuando
+`identityOf` (`src/store/sessionStore.ts:42`: el id si el estado es
+`authenticated`, `null` en cualquier otro caso) cambia, actúa sobre
+`PRIVATE_QUERY_PREFIXES = [listKeys.all]`: identidad nueva `null` →
+`removeQueries` (sin refetch con la sesión muerta); otro usuario →
+`resetQueries` (avisa a los observers montados, que `removeQueries` dejaría
+colgados). Misma identidad (p. ej. un refetch de `me`) no hace nada. Zustand
+llama al listener de forma síncrona, antes de que React renderice. Segunda
+pieza: `isSameSessionOwner` (`sessionStore.ts:54`), un guard en los `onError`
+que restauran un snapshot: `useUpdateChecklist.ts:115`,
+`useUpdateEntryMeta.ts:95` y `useUpdateEntryProgress.ts:110`. Cada `onMutate`
+guarda el `ownerId` junto al snapshot. `authKeys` y `profileKeys` quedan fuera
+a propósito (ciclo de vida propio y perfiles públicos).
+
+**Consecuencias.**
+
+- Positivas: da igual quién provoque el cambio de identidad (interceptor,
+  login, register, logout); un camino nuevo que cambie la identidad queda
+  cubierto sin tocarlo.
+- Un prefijo de queryKey con datos de usuario nuevo **se registra en
+  `PRIVATE_QUERY_PREFIXES`**; si no, es una fuga igual que la de antes. Todo
+  hook optimista nuevo lleva el guard `isSameSessionOwner` en su rollback.
+- `useLogout` conserva su `removeQueries` explícito, ahora **redundante e
+  idempotente**.
+- Matiz aceptado: en `useUpdateEntryProgress` el snapshot se toma en
+  `setProgress` y el `ownerId` en `onMutate`; hay una ventana de milisegundos
+  entre los dos.
+- Sin verificación visual en navegador; la cobertura es de tests (doc 17).
+
+---
+
+## ADR-028 — Las notas de un entry son privadas: las rutas públicas emiten `notes: null`
+
+**Estado.** Aceptado (2026-10-07). Hallazgo del `/code-review` del 2026-10-07
+(tarea 4.15). Un supuesto asociado (rating y fechas públicos) **no está
+confirmado por el dueño**.
+
+**Contexto.** `GET /users/:id/checklists/:cid/entries`
+(`ll-odoo/odoo-modules/ll_webpage/controllers/api_public.py`) reutilizaba
+`_serialize_entry` de `api_lists.py`, el serializador de `/me/*`, que emite
+`notes` (`link_description`), también en `childEntries`. El mock tenía la misma
+fuga. El brief del proyecto (`docs/ll_checklist_ai_context.md`) llama a las
+notas "Notas privadas" y el doc 04 decía del endpoint público "igual que
+`me/.../entries`", frase que hacía de la fuga un comportamiento especificado.
+Publicar una checklist comparte qué se sigue y cuánto se avanzó, no lo que el
+usuario escribió para sí.
+
+**Alternativas consideradas.**
+
+1. **Un flag en `_serialize_entry`** (`public=True`). Descartada: el default
+   queda inseguro (olvidar el flag filtra) y hay que propagarlo a la recursión
+   de `childEntries`.
+2. **Omitir la clave `notes`** en las rutas públicas. Descartada: rompe el
+   schema Zod compartido, y un despliegue desfasado (frontend nuevo contra
+   backend viejo o al revés) tiraría la página pública.
+3. **`z.null()` en el schema como detector** de la fuga. Descartada: contradice
+   ADR-025 (Zod valida la forma, no las convenciones; además fallaría la página
+   entera ante un campo que el servidor puede emitir).
+4. **Emitir `notes: null` mediante una redacción explícita (elegida).**
+
+**Decisión.** Las rutas públicas emiten `notes: null`; la forma del contrato no
+cambia (`notes: string | null` ya lo admite) y el despliegue puede ir en
+cualquier orden. Backend, en `api_public.py`: `_PRIVATE_ENTRY_FIELDS`
+(línea 47), `_redact_entry` (168; copia recursiva sobre `childEntries`, no
+muta el original) y `_serialize_public_entry` (183), usado en el endpoint
+(275). `api_lists.py` no se tocó. Mock: `redactPublicEntry` en
+`src/mocks/handlers.ts:193`, aplicado a la ruta pública (802); el estado en
+memoria conserva la nota para `/me/*`.
+
+**Consecuencias.**
+
+- En rutas públicas `null` significa **"no se divulga"**, no "el usuario no
+  escribió nada".
+- Un campo privado nuevo del entry se agrega a `_PRIVATE_ENTRY_FIELDS` **y** al
+  redactor del mock. Una ruta pública nueva serializa con redacción explícita,
+  nunca reutilizando el serializador de `/me/*` directo.
+- Supuesto sin confirmar: `rating`, `startedAt` y `finishedAt` (los tres
+  `[EXT]`, solo existen en el mock) **siguen siendo públicos**. Si el dueño
+  decide lo contrario, se suman a los dos redactores.
+- Pendiente: verificación del backend con curl contra Odoo (doc 17 y
+  `docs-backend/14`).

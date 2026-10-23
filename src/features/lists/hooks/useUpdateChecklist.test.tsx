@@ -5,6 +5,8 @@ import { http, HttpResponse, delay } from 'msw'
 import type { ReactNode } from 'react'
 import { server } from '@/mocks/server'
 import { useUpdateChecklist } from '@/features/lists/hooks/useUpdateChecklist'
+import { usePrivateCacheReset } from '@/features/auth/hooks/usePrivateCacheReset'
+import { useSessionStore } from '@/store/sessionStore'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
 import type { ChecklistNode } from '@/features/lists/types'
 
@@ -192,5 +194,38 @@ describe('useUpdateChecklist', () => {
     // corresponde al estado que de verdad lo precede. Sin `scope` esto daría 2.
     expect(maxConcurrent).toBe(1)
     expect(bodies).toEqual(['Primero', 'Segundo'])
+  })
+
+  it('un 401 en el PATCH vacía el cache y el rollback NO lo resucita con datos del usuario anterior', async () => {
+    useSessionStore.setState({
+      user: { id: 1, odooUserId: 11, name: 'Alex', email: 'a@x.dev', avatarUrl: null },
+      status: 'authenticated',
+    })
+    server.use(
+      http.patch('/api/v1/me/checklists/:id', () =>
+        HttpResponse.json(
+          { error: { code: 'UNAUTHORIZED', message: 'expired' } },
+          { status: 401 },
+        ),
+      ),
+    )
+    const client = new QueryClient()
+    client.setQueryData(listKeys.tree(), fakeTree())
+
+    // RootLayout monta el reset; acá se monta junto al hook bajo prueba.
+    const { result } = renderHook(
+      () => {
+        usePrivateCacheReset()
+        return useUpdateChecklist(1)
+      },
+      { wrapper: wrapper(client) },
+    )
+
+    result.current.mutate({ name: 'Nope' })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+
+    // El interceptor corre ANTES que `onError`: sin el guard de dueño, el
+    // rollback haría `setQueryData(snapshot)` y devolvería el árbol de Alex.
+    expect(client.getQueryData(listKeys.tree())).toBeUndefined()
   })
 })

@@ -1418,3 +1418,102 @@ corregidos en la rama `sprint4/4.8-readme`. Tarea 4.8 sigue en curso.
   Solo se probó la lógica de shell del `RUN` (sin arg, variable indefinida; con
   `mock`, exportada). Ni el 503 de nginx ni el build con `--build-arg` están
   verificados de punta a punta.
+
+## Actualización (2026-10-07) — Privacidad: hallazgos del code-review (4.14, 4.15)
+
+Un `/code-review` del 2026-10-07 encontró dos fugas de privacidad. El dueño
+aprobó el plan del arquitecto y ambas están implementadas, **sin commitear ni
+pasar por CI**. Se registran como tareas 4.14 y 4.15 del plan (doc 07) y las
+decisiones quedan en **ADR-027** y **ADR-028**. Fichas en el formato del doc 18.
+Suite tras los dos cambios: **362 tests en 64 archivos** (eran 354 en 63: +8
+tests, +1 archivo), corrida real con `npm run test`. La primera corrida de la
+sesión mostró además `Errors 1 error` (una excepción no capturada atribuida a
+`useUpdateChecklist.test.tsx`, dentro del interceptor de XHR de MSW) con los 362
+verdes; no se reprodujo en tres corridas posteriores. **Sin diagnosticar.**
+
+### 4.14 — MEDIA/ALTA en máquina compartida. El cache privado sobrevivía al cambio de identidad
+
+- **Ubicación:** `src/lib/http.ts:113-119` (el interceptor 401 solo llama
+  `clearSession()`); `useLogin`/`useRegister` solo hacían `setUser` +
+  `setQueryData(authKeys.me())`; únicamente `useLogout.ts:37` hacía
+  `removeQueries({ queryKey: listKeys.all })`. Los rollbacks sin guard:
+  `useUpdateChecklist.ts:115`, `useUpdateEntryMeta.ts:95`,
+  `useUpdateEntryProgress.ts:110`.
+- **Escenario:** a A se le vence la cookie → 401 → `/login` → B entra en la
+  misma pestaña y, durante `staleTime` (60 s), ve el árbol y los entries de A; el
+  `libraryIndex` de A marca como "ya en tu lista" tarjetas del catálogo de B.
+  Tercer camino, **hallado por el arquitecto y no por el review**: el
+  interceptor corre antes del `onError` de la mutación; con el cache ya vaciado,
+  el rollback optimista (`setQueryData(snapshot)`) vuelve a sembrar los datos
+  de A.
+- **Falso verde:** cada test crea su propio `QueryClient`; `useLogout.test` solo
+  cubre el camino que ya limpiaba; MSW no puede delatarlo, porque el defecto es
+  del cliente y ninguna respuesta del servidor lo provoca.
+- **Severidad:** Media/alta en máquina compartida (en uso personal en una sola
+  máquina no hay segundo usuario que lo vea).
+- **Cierre (2026-10-07).** `src/features/auth/hooks/usePrivateCacheReset.ts`
+  (nuevo, montado en `RootLayout.tsx:19`) se suscribe al `sessionStore` y, ante
+  un cambio de `identityOf` (`sessionStore.ts:42`), hace `removeQueries`
+  (identidad nueva `null`) o `resetQueries` (otro usuario) sobre
+  `PRIVATE_QUERY_PREFIXES = [listKeys.all]`. Guard `isSameSessionOwner`
+  (`sessionStore.ts:54`) en los tres rollbacks. `authKeys` y `profileKeys` fuera
+  a propósito. Tests: `usePrivateCacheReset.test.tsx` (A: un 401 real vacía el
+  árbol, línea 49; B: el login de otro usuario saca el árbol del anterior, 66; C:
+  `setUser` del mismo usuario no borra, 86), el test D en
+  `useUpdateChecklist.test.tsx:199` y dos en `useUpdateEntryProgress.test.tsx`
+  (progreso, 449; meta, 466). **Rojos vistos:** A y B contra un stub vacío; con
+  el guard quitado, los 3 D en rojo; con la suscripción quitada, A, B y los 3 D
+  en rojo.
+- **Pendiente:** **sin verificación visual en el navegador.** Matiz aceptado: en
+  `useUpdateEntryProgress` el snapshot se toma en `setProgress` y el `ownerId` en
+  `onMutate`, una ventana de milisegundos. `useLogout` conserva su
+  `removeQueries`, redundante e idempotente.
+
+### 4.15 — ALTA. `notes` expuesta en la ruta pública de entries
+
+- **Ubicación:** `ll-odoo/odoo-modules/ll_webpage/controllers/api_public.py:275`
+  (el endpoint llamaba a `_serialize_entry`), que emite `notes` en
+  `api_lists.py:267` (`row["link_description"] or None`), también en
+  `childEntries`. Mock: la ruta pública de `src/mocks/handlers.ts` devolvía los
+  entries tal cual; el seed de la lista 1 (publicada) trae
+  `'Ufotable animation is unreal.'` en `src/mocks/seed/lists.ts:138`.
+- **Escenario:** cualquier visitante anónimo, sin cookie, pide
+  `GET /users/:id/checklists/:cid/entries` de una lista publicada y recibe lo que
+  el dueño escribió para sí. El brief del proyecto
+  (`docs/ll_checklist_ai_context.md`) las llama "Notas privadas", y el doc 04
+  decía del endpoint público "igual que `me/.../entries`", así que la fuga
+  estaba especificada por omisión.
+- **Falso verde:** `PublicListPage` no renderiza `notes`, así que la UI no
+  delataba nada; el test de rutas públicas de `src/mocks/links.test.ts` miraba
+  404 y stats, nunca el contenido; la verificación con curl de B8 comprobó
+  **qué listas** salen, no **qué campos**; y mock y backend "coincidían" en la
+  fuga, de modo que contrastar uno con el otro tampoco la mostraba.
+- **Severidad:** Alta (dato privado del usuario servido sin autenticación).
+- **Cierre (2026-10-07).** Las rutas públicas emiten `notes: null`; la forma del
+  contrato no cambia, Zod ya admite `null` y el despliegue puede ir en cualquier
+  orden. Backend (`api_public.py`): `_PRIVATE_ENTRY_FIELDS` (47),
+  `_redact_entry` (168, recursiva, copia), `_serialize_public_entry` (183);
+  `api_lists.py` no se tocó. Mock: `redactPublicEntry` (`handlers.ts:193`, usado
+  en 802). Tests nuevos en `src/mocks/links.test.ts`, bloque 'rutas públicas':
+  *la ruta pública no divulga las notas del dueño* (incluye un hijo de franchise;
+  rojo antes, verde después, rojo de nuevo en la contraprueba sin redacción) y
+  *el dueño sigue viendo sus notas por /me*.
+- **Pendiente (verificación del backend):** `py_compile` ok y la función de
+  redacción probada aislada (pone `null` en hijos, no muta el original, deja
+  `rating`). **NO verificado con curl contra Odoo: Odoo/Docker no estaban
+  levantados.** Cambio local en `ll-odoo`, rama `anitrack/rest-catalog-api`, sin
+  commit ni push (los commits propios siguen siendo nueve). Comandos
+  pendientes: login con `portaltest@anitrack.dev` / `devlocal`; publicar una
+  checklist; `PATCH /me/links/<id>` con `{"notes":"NOTA-PRIVADA-123"}` en un
+  entry top-level y en un hijo; `GET` público **sin cookie**, con el header
+  `X-Requested-With: anitrack`, y buscar la cadena → **0 coincidencias**; el
+  `GET /me/...` con cookie → **2**.
+- **Supuesto sin confirmar:** `rating`, `startedAt` y `finishedAt` (`[EXT]`,
+  solo existen en el mock) siguen públicos. Es una decisión del arquitecto que
+  el dueño no ha confirmado (ADR-028).
+
+### Lo que dejan en común
+
+Las dos son la misma lección del doc 18 vista desde otro lado: **un test que
+solo ejercita el camino que ya funcionaba no protege nada**, y MSW no delata
+nada que el servidor no emita ni que el cliente haga por su cuenta.

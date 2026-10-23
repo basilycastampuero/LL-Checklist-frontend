@@ -296,7 +296,7 @@ interface ListEntry {
   order: number;
   contentType: "G" | "V";
   franchiseId: number;
-  notes: string | null;          // mapea a link_description
+  notes: string | null;          // mapea a link_description. PRIVADA: en rutas públicas siempre null (ADR-028)
   // kind === "version":
   version?: {
     versionId: number;
@@ -404,7 +404,13 @@ nodo publicado sin ancestro publicado va como raíz, y sus `children` se podan a
 los publicados.
 
 ### `GET /api/v1/users/:id/checklists/:checklistId/entries`
-Igual que `me/.../entries` pero solo si `isPublished`. Si no lo está → **`404`,
+Mismo shape que `me/.../entries` pero solo si `isPublished`, y **con `notes`
+siempre `null`** en todos los niveles, `childEntries` incluidos (ADR-028): las
+notas son del dueño y publicar la lista no las comparte. La clave sigue
+presente, porque el schema es el mismo; `null` acá significa "no se divulga".
+`rating`, `startedAt` y `finishedAt` (`[EXT]`) siguen emitiéndose: supuesto del
+arquitecto, **pendiente de confirmar por el dueño**. Si la lista no está
+publicada → **`404`,
 no `403`**: un `403` confirma que el id existe, y acá eso importa más que en el
 resto de la API privada porque un id de checklist privada es adivinable a partir
 de los ids públicos vecinos. La búsqueda de la checklist es **recursiva**: una

@@ -33,3 +33,24 @@ export const useSessionStore = create<SessionState>((set) => ({
   // para olvidarlo. Solo se llama cuando no hay ninguno (ver `useMe`).
   setUnresolved: () => set({ status: 'unresolved' }),
 }))
+
+/**
+ * Identidad del dueño de los datos privados del cache: el id del usuario si hay
+ * sesión autenticada, `null` en cualquier otro estado. Es la vara con la que se
+ * decide si lo que hay en TanStack Query "sigue siendo de quien mira".
+ */
+export function identityOf(
+  s: Pick<SessionState, 'status' | 'user'>,
+): number | null {
+  return s.status === 'authenticated' ? (s.user?.id ?? null) : null
+}
+
+/**
+ * ¿La sesión actual sigue siendo la de `ownerId`? Los rollbacks optimistas lo
+ * consultan antes de restaurar un snapshot: si la identidad cambió mientras la
+ * mutación volaba (típico: el 401 que expulsó al usuario), restaurar volvería a
+ * crear en el cache datos del dueño anterior.
+ */
+export function isSameSessionOwner(ownerId: number | null): boolean {
+  return identityOf(useSessionStore.getState()) === ownerId
+}

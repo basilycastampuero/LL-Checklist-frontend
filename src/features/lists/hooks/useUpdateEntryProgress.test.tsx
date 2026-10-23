@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse, delay } from 'msw'
 import type { ReactNode } from 'react'
 import { server } from '@/mocks/server'
+import { usePrivateCacheReset } from '@/features/auth/hooks/usePrivateCacheReset'
 import { useUpdateEntryProgress } from '@/features/lists/hooks/useUpdateEntryProgress'
 import { useUpdateEntryMeta } from '@/features/lists/hooks/useUpdateEntryMeta'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
@@ -418,5 +419,65 @@ describe('useUpdateEntryProgress', () => {
     expect(client.getQueryState(listKeys.libraryIndex())?.isInvalidated).toBe(
       false,
     )
+  })
+
+  describe('401 en el PATCH (cambio de identidad en vuelo)', () => {
+    const unauthorized = () =>
+      http.patch('/api/v1/me/links/:id', () =>
+        HttpResponse.json(
+          { error: { code: 'UNAUTHORIZED', message: 'expired' } },
+          { status: 401 },
+        ),
+      )
+
+    function mountWithReset<T>(
+      client: QueryClient,
+      useHookUnderTest: () => T,
+    ) {
+      const Wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      )
+      return renderHook(
+        () => {
+          usePrivateCacheReset()
+          return useHookUnderTest()
+        },
+        { wrapper: Wrapper },
+      )
+    }
+
+    it('progreso: el rollback no resucita el cache vaciado por el 401', async () => {
+      server.use(unauthorized())
+      const entry = looseEntry()
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      })
+      client.setQueryData(listKeys.entries(CHECKLIST_ID), [entry])
+      const hook = mountWithReset(client, () =>
+        useUpdateEntryProgress(CHECKLIST_ID, entry),
+      )
+
+      act(() => hook.result.current.setProgress(13))
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalled())
+      expect(client.getQueryData(listKeys.entries(CHECKLIST_ID))).toBeUndefined()
+    })
+
+    it('meta: el rollback no resucita el cache vaciado por el 401', async () => {
+      server.use(unauthorized())
+      const entry = looseEntry()
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      })
+      client.setQueryData(listKeys.entries(CHECKLIST_ID), [entry])
+      const hook = mountWithReset(client, () =>
+        useUpdateEntryMeta(CHECKLIST_ID, entry.linkId),
+      )
+
+      act(() => hook.result.current.mutate({ notes: 'hola' }))
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalled())
+      expect(client.getQueryData(listKeys.entries(CHECKLIST_ID))).toBeUndefined()
+    })
   })
 })

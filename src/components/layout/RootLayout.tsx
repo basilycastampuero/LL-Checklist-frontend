@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header'
 import { BottomTabs } from '@/components/layout/BottomTabs'
 import { useApplyTheme } from '@/hooks/useApplyTheme'
 import { useMe } from '@/features/auth/hooks/useMe'
+import { usePrivateCacheReset } from '@/features/auth/hooks/usePrivateCacheReset'
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 
@@ -15,6 +16,7 @@ import { OfflineBanner } from '@/components/common/OfflineBanner'
 export function RootLayout() {
   useApplyTheme()
   useMe()
+  usePrivateCacheReset()
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
