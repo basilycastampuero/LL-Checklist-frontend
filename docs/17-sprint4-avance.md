@@ -5,9 +5,10 @@
 > #6); las actualizaciones fechadas al final traen lo posterior: 4.1 en curso,
 > 4.11, 4.12, 4.4, 4.3 y 4.6 cerradas (2026-09-30); F1 y F2 de la
 > auditoría cerrados (2026-10-01); 4.7a (deploy de la demo mock) cerrada y
-> mergeada (2026-10-02); 4.5 (performance) en curso con criterio cumplido
-> pendiente de re-medición (2026-10-06); 4.2 (animaciones) implementada y
-verificada, sin commitear (2026-10-06). 3.3b y B9 (deuda del
+> mergeada (2026-10-02); 4.5 (performance) cerrada, con el criterio re-medido
+> en producción (PR #10 y #11, 2026-10-06); 4.2 (animaciones) mergeada en el
+> PR #13 y su medición de Lighthouse re-hecha en válido (2026-10-06; el PR #14
+> registró la medición inválida). 3.3b y B9 (deuda del
 > Sprint 3b) siguen diferidas a la espera de que el dueño del proyecto
 > registre una app de Twitch.
 
@@ -960,13 +961,12 @@ resultado se descartó entero.
   (Lighthouse >= 90 perf en `/catalog`).
 - **Detalle cosmético sin consecuencia:** `/mock-images/` (directorio pelado)
   devuelve `index.html` por el catch-all. Nada pide un directorio.
-- **Decisión abierta (del dueño, no hallazgo):** el proyecto en Vercel quedó
-  bajo el scope `woo-ka`, la cuenta **secundaria** de GitHub, mientras el repo
-  está en la **principal** (`basilycastampuero/LL-Checklist-frontend`). Si la
-  URL va al README como pieza de portafolio (4.8), probablemente conviene que
-  esté del lado de la cuenta con la que muestra su trabajo. Moverla implica
-  recrear el proyecto en Vercel y cambiar la URL: es más barato decidirlo antes
-  de 4.8.
+- **Decisión del dueño (cerrada el 2026-10-06, no hallazgo):** el proyecto en
+  Vercel quedó bajo el scope `woo-ka`, la cuenta **secundaria** de GitHub,
+  mientras el repo está en la **principal**
+  (`basilycastampuero/LL-Checklist-frontend`). Se evaluó moverlo (implicaba
+  recrear el proyecto en Vercel y cambiar la URL), y el dueño decidió que **se
+  queda como está**: no le preocupa que la demo viva en `woo-ka`.
 
 ## Actualización (2026-10-06) — Tarea 4.5 (performance): el criterio ya se cumplía, la hipótesis era falsa
 
@@ -1175,7 +1175,7 @@ primera fue el truco de las dos pasadas con `--user-data-dir` en 4.7a.
 
 ## Actualización (2026-10-06) — Tarea 4.2: animaciones
 
-Código hecho y verificado, **sin commitear**. Decisión de peso en
+Código hecho y verificado; **mergeada en el PR #13** (2026-10-06). Decisión de peso en
 [ADR-026](./03-decisiones-arquitectura.md): las transiciones de ruta usan las
 View Transitions nativas y no `motion`, que es lo que dice el doc 06.
 
@@ -1328,11 +1328,33 @@ medición corrigió, que es trabajo normal. Esta fue distinta y más cara: una
 **medición mal hecha presentada como un hecho**, con tabla, seis corridas y
 apariencia de evidencia. Lo único que evitó el daño fue no actuar sobre ella.
 
+#### Desenlace (2026-10-06, tras reiniciar WSL)
+
+Con la máquina en frío el `benchmarkIndex` volvió a su rango y la medición pasó
+a ser comparable:
+
+| | benchmarkIndex | performance | TBT | LCP |
+|---|---|---|---|---|
+| línea base, antes de 4.2 | 3639 / 3683 / 3545 | 90 / 93 / 93 (mediana **93**) | 30–40 ms | ~2,9 s |
+| con 4.2, máquina en frío | 3061 / 3155 / 3318 | 90 / 92 / 92 (mediana **92**) | 40–50 ms | ~3,0 s |
+
+**4.2 no rompió el criterio de 4.5.** Un punto de diferencia, dentro del rango
+de 3 puntos que ya se había observado entre corridas del mismo build, y las tres
+corridas por encima de 90. El TBT —que la medición inválida mostraba
+multiplicado por trece— quedó prácticamente igual, lo que **corrobora la
+bisección local**: las animaciones cuestan decenas de milisegundos, no cientos.
+
+Matiz honesto: la mediana del `benchmarkIndex` quedó en 3155 contra los 3683 de
+la línea base, un 14% por debajo. No es una coincidencia perfecta, pero está
+lejos del 2,4× que invalidó la tanda anterior, y el TBT casi idéntico sostiene
+la lectura. El criterio se da por cumplido.
+
 ### Lo que queda abierto
 
-- **Medir Lighthouse en producción: intentado el 2026-10-06, SIN RESULTADO
-  VÁLIDO.** Ver "La medición que no se pudo hacer", más arriba. El criterio de
-  4.5 queda **sin verificar** tras 4.2: ni cumplido ni roto.
+- ~~Medir Lighthouse en producción.~~ **Cerrado el 2026-10-06**, tras reiniciar
+  WSL y volver a medir con el `benchmarkIndex` en rango: mediana 92 de
+  performance y 100 de accessibility, las tres corridas por encima de 90. **4.2
+  no rompió el criterio de 4.5.** Detalle en "Desenlace", más arriba.
 - **Dos archivos sobre el techo de ~150 líneas del Definition of Done:**
   `FranchiseCard.tsx` en 156 y `ChecklistTreeItem.tsx` en 205 (ya estaba en
   ~175 antes de esta tarea).
@@ -1342,3 +1364,57 @@ apariencia de evidencia. Lo único que evitó el daño fue no actuar sobre ella.
 - Detalle cosmético preexistente y ajeno a 4.2, visto en las capturas: el input
   de año muestra el placeholder cortado como "From yea" en los dos anchos.
 
+
+## Actualización (2026-10-07) — Tarea 4.8 (README): correcciones del code-review
+
+Un `/code-review` del 2026-10-07 sobre el README nuevo dejó dos hallazgos, ya
+corregidos en la rama `sprint4/4.8-readme`. Tarea 4.8 sigue en curso.
+
+### Hallazgo 10: el README describía funciones que no existen
+
+- **Mover carpetas.** El README decía "create, rename, move and delete".
+  Verificado en código: `ChecklistNodeMenu.tsx` solo ofrece renombrar, borrar,
+  publicar/despublicar y nueva sub-lista; `useUpdateChecklist.ts` documenta que
+  el patch solo admite campos cosméticos y que "mover/reordenar es la tarea 4.10"
+  (stretch, sin implementar). El único `parentId` de escritura es el de crear
+  (`ChecklistNodeMenu.tsx:117`). Ahora dice "create, rename, publish and delete".
+- **Sincronización de copias.** El README decía que agregar la misma versión a
+  varias listas "mantiene el progreso sincronizado". Falso: la sincronización es
+  opcional. Ante un 409, `WizardConflictStep.tsx` ofrece "Add anyway" (copia
+  independiente, `force: true`) o "Create synced copy" (`syncWithLinkId`, solo
+  habilitado al elegir con cuál sincronizar), más cancelar
+  (`useLinkWizard.ts:54-57`, `:128-135`). El README ahora lo describe como
+  opt-in.
+- **Resto de la sección "What it does"**, revisada con el mismo criterio: sin
+  otras afirmaciones falsas (filtros por tipo/género/plataforma/año, perfiles
+  públicos, bottom tabs, `OfflineBanner` y temas existen en código).
+  **No se verificó en ejecución** el comportamiento de rollback del stepper ni la
+  navegación por teclado; se apoyan en tests y en el doc 17/18 ya existentes.
+
+### Hallazgo 3: la imagen Docker de producción entregaba la app rota
+
+- `docker/nginx.conf`: el `try_files ... /index.html` respondía `index.html` con
+  200 a `/api/*` y `/web/image/*`; Zod fallaba con HTML y el catálogo mostraba
+  `ErrorState` sin pista de la causa. Ahora `location ~ ^/(api|web/image)/`
+  devuelve 503 con el envelope del contrato (`code: INTERNAL`, mensaje "No
+  backend behind this image: ..."). La imagen **no** proxea al backend.
+- `Dockerfile` (etapa `build`): nuevo `ARG VITE_API_MODE`. Sin pasarlo, el build
+  de producción usa `real` (`lib/env.ts`, a propósito), y como la imagen no trae
+  backend, todo responde 503. Demo:
+  `docker build --target production --build-arg VITE_API_MODE=mock -t ll-checklist-frontend .`
+  Si el arg no se pasa se hace `unset` en vez de exportarlo vacío, porque un
+  string vacío no lo atrapa el `??` de `env.ts`.
+- `Dockerfile`: base de `node:24-alpine` a `node:22-alpine`, para coincidir con
+  `.nvmrc`, `engines` y la CI.
+- README, sección "Production image (nginx)", actualizada con el comando de demo
+  y una nota sobre el modo real.
+- **Modo real sigue sin resolverse en la imagen**: hace falta un reverse proxy
+  delante que lleve `/api` y `/web/image` a Odoo same-origin (ADR-005).
+  Relacionado con 4.7b (bloqueada).
+
+### Verificación
+
+- **Pendiente: la imagen no se construyó.** Docker Desktop no estaba corriendo.
+  Solo se probó la lógica de shell del `RUN` (sin arg, variable indefinida; con
+  `mock`, exportada). Ni el 503 de nginx ni el build con `--build-arg` están
+  verificados de punta a punta.
