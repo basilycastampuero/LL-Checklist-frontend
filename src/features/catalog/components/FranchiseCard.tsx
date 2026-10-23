@@ -5,6 +5,7 @@ import { GenreBadge } from '@/components/common/GenreBadge'
 import { cn } from '@/lib/utils'
 import { franchisePath } from '@/utils/slug'
 import { t } from '@/i18n/en'
+import { displayName } from '@/features/catalog/utils/displayName'
 import type { FranchiseSummary } from '@/features/catalog/types'
 
 interface FranchiseCardProps {
@@ -78,6 +79,7 @@ export function FranchiseCard({
   // y no con un `<MotionConfig>` en el shell: eso importaría `motion/react` en
   // el chunk de entrada, que es justo lo que ADR de performance evita.
   const reduceMotion = useReducedMotion()
+  const name = displayName(franchise.name)
   const animateEntry = index !== undefined && !reduceMotion
   const { from, to } = franchise.yearRange
   const years = from ? (to && to !== from ? `${from}–${to}` : `${from}`) : null
@@ -92,7 +94,7 @@ export function FranchiseCard({
       transition={{ type: 'spring', stiffness: 300, damping: 24 }}
     >
       <Link
-        to={franchisePath(franchise.id, franchise.name)}
+        to={franchisePath(franchise.id, name)}
         viewTransition
         className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
@@ -101,7 +103,7 @@ export function FranchiseCard({
             {franchise.imageUrl ? (
               <img
                 src={franchise.imageUrl}
-                alt={franchise.name}
+                alt={name}
                 loading="lazy"
                 className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
@@ -136,7 +138,7 @@ export function FranchiseCard({
               'group-hover:text-primary',
             )}
           >
-            {franchise.name}
+            {name}
           </h3>
           {years && <p className="text-xs text-muted-foreground">{years}</p>}
           <div className="flex flex-wrap gap-1 pt-0.5">

@@ -94,6 +94,11 @@ export const en = {
      * `h1` a `h3`. Van en `sr-only` para no alterar el layout del doc 06.
      */
     pageHeading: 'Catalog',
+    /**
+     * Franquicia o content sin ningún nombre en Odoo: el backend emite `""`
+     * (tarea 4.22, `displayName`).
+     */
+    untitled: 'Untitled',
     /** Aviso de rango de años al revés (hallazgo #35). */
     yearRangeInverted: 'The "from" year is after the "to" year.',
     /** Salida del callejón sin salida de `?page=` fuera de rango (#26). */

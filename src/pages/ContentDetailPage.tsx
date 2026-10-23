@@ -18,6 +18,7 @@ import { parseIdParam, franchisePath } from '@/utils/slug'
 import { paths } from '@/router/paths'
 import { ApiError } from '@/types/api.types'
 import { t } from '@/i18n/en'
+import { displayName } from '@/features/catalog/utils/displayName'
 
 /**
  * Detalle de un content puntual (doc 06/07 tarea 2.5): ruta propia para
@@ -85,14 +86,14 @@ export default function ContentDetailPage() {
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={franchisePath(data.franchise.id, data.franchise.name)}>
-                {data.franchise.name}
+              <Link to={franchisePath(data.franchise.id, displayName(data.franchise.name))}>
+                {displayName(data.franchise.name)}
               </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{data.name}</BreadcrumbPage>
+            <BreadcrumbPage>{displayName(data.name)}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

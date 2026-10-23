@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { ExpandableText } from '@/components/common/ExpandableText'
 import { VersionsTable } from '@/features/catalog/components/VersionsTable'
 import { contentPath } from '@/utils/slug'
+import { displayName } from '@/features/catalog/utils/displayName'
 import { VIDEO_TYPE_LABELS } from '@/types/media.types'
 import type { ContentDetail, VersionDetail } from '@/features/catalog/types'
 
@@ -33,6 +34,7 @@ export function ContentSection({
   const videoTypeLabel = content.videoType
     ? VIDEO_TYPE_LABELS[content.videoType]
     : null
+  const name = displayName(content.name)
   const TypeIcon = content.type === 'G' ? Gamepad2 : Film
 
   return (
@@ -43,7 +45,7 @@ export function ContentSection({
             {content.imageUrl ? (
               <img
                 src={content.imageUrl}
-                alt={content.name}
+                alt={name}
                 loading="lazy"
                 className="size-full object-cover"
               />
@@ -60,17 +62,17 @@ export function ContentSection({
               <Link
                 to={contentPath(
                   franchiseId,
-                  franchiseName,
+                  displayName(franchiseName),
                   content.id,
-                  content.name,
+                  name,
                 )}
                 className="text-lg font-semibold text-foreground hover:text-primary hover:underline"
               >
-                {content.name}
+                {name}
               </Link>
             ) : (
               <h2 className="text-lg font-semibold text-foreground">
-                {content.name}
+                {name}
               </h2>
             )}
             {videoTypeLabel && (

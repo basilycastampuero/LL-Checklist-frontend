@@ -3,6 +3,7 @@ import { Film } from 'lucide-react'
 import { GenreBadge } from '@/components/common/GenreBadge'
 import { ExpandableText } from '@/components/common/ExpandableText'
 import { t } from '@/i18n/en'
+import { displayName } from '@/features/catalog/utils/displayName'
 import type { FranchiseDetail, Genre } from '@/features/catalog/types'
 
 interface FranchiseHeaderProps {
@@ -25,6 +26,7 @@ function unionGenres(franchise: FranchiseDetail): Genre[] {
 /** Header de detalle de franquicia (doc 06): poster, nombre + alternativos, géneros, descripción. */
 export function FranchiseHeader({ franchise }: FranchiseHeaderProps) {
   const genres = useMemo(() => unionGenres(franchise), [franchise])
+  const name = displayName(franchise.name)
   const altNames = franchise.alternativeNames.filter((n) => n.name !== franchise.name)
 
   return (
@@ -34,7 +36,7 @@ export function FranchiseHeader({ franchise }: FranchiseHeaderProps) {
           {franchise.imageUrl ? (
             <img
               src={franchise.imageUrl}
-              alt={franchise.name}
+              alt={name}
               className="size-full object-cover"
             />
           ) : (
@@ -46,7 +48,7 @@ export function FranchiseHeader({ franchise }: FranchiseHeaderProps) {
       </div>
       <div className="min-w-0 flex-1 space-y-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{franchise.name}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{name}</h1>
           {altNames.length > 0 && (
             <p className="mt-1 text-sm text-muted-foreground">
               {t.detail.alsoKnownAs}: {altNames.map((n) => n.name).join(', ')}
