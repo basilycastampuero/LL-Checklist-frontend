@@ -4,14 +4,19 @@ import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
 import { identityOf, isSameSessionOwner, useSessionStore } from '@/store/sessionStore'
-import { patchEntryFields } from '@/features/lists/utils/entryTree'
+import {
+  findEntry,
+  patchEntryFields,
+  pickPatchedFields,
+} from '@/features/lists/utils/entryTree'
 import { isFeatureEnabled } from '@/lib/features'
 import { t } from '@/i18n/en'
 import type { EntryMetaPatch } from '@/features/lists/utils/entryTree'
 import type { ListEntry, UpdateLinkRequest } from '@/features/lists/types'
 
 interface MutationContext {
-  snapshot: ListEntry[] | undefined
+  /** Valores previos de SOLO los campos que este patch escribe (tarea 4.17). */
+  previousFields: Partial<EntryMetaPatch> | undefined
   /** Dueño del snapshot; ver `isSameSessionOwner`. */
   ownerId: number | null
 }
@@ -61,6 +66,10 @@ export function useUpdateEntryMeta(checklistId: number, linkId: number) {
      * del debounce, guardar una nota; si después falla el PATCH de progreso,
      * su rollback se lleva también la nota que el servidor ya había guardado.
      * Un scope por **link** y no por hook es lo que lo evita.
+     *
+     * Desde la tarea 4.17 el rollback ya no restaura el array entero sino solo
+     * los campos de este link, así que el scope compartido sirve para ORDENAR
+     * las escrituras del mismo link, no para proteger a otros links.
      */
     scope: { id: `entry-${linkId}` },
 
@@ -79,21 +88,35 @@ export function useUpdateEntryMeta(checklistId: number, linkId: number) {
 
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey })
-      const snapshot = queryClient.getQueryData<ListEntry[]>(queryKey)
-      if (snapshot) {
+      const current = queryClient.getQueryData<ListEntry[]>(queryKey)
+      const target = current && findEntry(current, linkId)
+      if (current) {
         queryClient.setQueryData(
           queryKey,
-          patchEntryFields(snapshot, linkId, patch),
+          patchEntryFields(current, linkId, patch),
         )
       }
-      return { snapshot, ownerId: identityOf(useSessionStore.getState()) }
+      return {
+        previousFields: target ? pickPatchedFields(target, patch) : undefined,
+        ownerId: identityOf(useSessionStore.getState()),
+      }
     },
 
     onError: (_error, _patch, context) => {
-      // Tras un 401 el cache privado se vació: restaurar lo resucitaría con
-      // datos del dueño anterior, así que solo se restaura si es el mismo.
-      if (context?.snapshot && isSameSessionOwner(context.ownerId)) {
-        queryClient.setQueryData(queryKey, context.snapshot)
+      // Rollback QUIRÚRGICO (tarea 4.17): se deshacen solo los campos de este
+      // link, aplicados sobre el cache ACTUAL. Restaurar el array entero
+      // llevaba por delante el cambio ya aceptado de otro link que corría en
+      // paralelo (su scope es distinto). Además, tras un 401 el cache privado
+      // se vació: `getQueryData` da `undefined` y no se resucita nada, y el
+      // guard de dueño cubre el caso de que ya haya otro usuario cargado.
+      if (context?.previousFields && isSameSessionOwner(context.ownerId)) {
+        const current = queryClient.getQueryData<ListEntry[]>(queryKey)
+        if (current) {
+          queryClient.setQueryData(
+            queryKey,
+            patchEntryFields(current, linkId, context.previousFields),
+          )
+        }
       }
       toast.error(t.lists.entry.metaError)
     },

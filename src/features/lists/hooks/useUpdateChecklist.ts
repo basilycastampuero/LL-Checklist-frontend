@@ -3,7 +3,11 @@ import { toast } from 'sonner'
 import { listsService } from '@/features/lists/services/lists.service'
 import { listKeys } from '@/features/lists/hooks/queryKeys'
 import { identityOf, isSameSessionOwner, useSessionStore } from '@/store/sessionStore'
-import { patchChecklistNode } from '@/features/lists/utils/checklistTree'
+import {
+  findChecklistNode,
+  patchChecklistNode,
+  pickPatchedFields,
+} from '@/features/lists/utils/checklistTree'
 import { apiErrorMessage } from '@/features/lists/utils/apiErrorMessage'
 import type {
   ChecklistNode,
@@ -11,7 +15,8 @@ import type {
 } from '@/features/lists/types'
 
 interface UpdateChecklistContext {
-  previousTree: ChecklistNode[] | undefined
+  /** Valores previos de SOLO los campos que este patch escribe (tarea 4.17). */
+  previousFields: CosmeticChecklistPatch | undefined
   /** Dueño del snapshot; ver `isSameSessionOwner`. */
   ownerId: number | null
 }
@@ -23,10 +28,14 @@ interface UpdateChecklistContext {
  *
  * `onMutate` cancela cualquier fetch de `tree()` en vuelo (si no, esa
  * respuesta podría llegar después del patch optimista y pisarlo con datos
- * viejos), guarda el árbol completo como snapshot y escribe el nodo
- * modificado recorriéndolo. `onError` restaura el snapshot ENTERO en vez de
- * revertir el nodo puntual: más simple y más seguro si, por ejemplo, la
- * mutación falla justo cuando otra ya había cambiado el árbol.
+ * viejos), guarda los valores previos de los campos que va a escribir y
+ * escribe el nodo modificado recorriendo el árbol.
+ *
+ * `onError` revierte SOLO esos campos de ESE nodo, sobre el árbol actual
+ * (tarea 4.17, hallazgo #5). Antes restauraba el árbol entero, y como el scope
+ * es por nodo —nodos distintos corren en paralelo—, el rollback de un nodo
+ * que falla borraba de pantalla el cambio ya aceptado de otro: publicar A y
+ * enseguida B, fallar A, y el toggle de B desaparecía hasta el refetch.
  *
  * El `id` llega como argumento del hook y no en las variables de la mutación
  * porque `scope` es una opción **estática** de `useMutation`: TanStack la lee
@@ -93,27 +102,35 @@ export function useUpdateChecklist(
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey: listKeys.tree() })
 
-      const previousTree = queryClient.getQueryData<ChecklistNode[]>(
-        listKeys.tree(),
-      )
-      if (previousTree) {
+      const current = queryClient.getQueryData<ChecklistNode[]>(listKeys.tree())
+      const node = current && findChecklistNode(current, checklistId)
+      if (current) {
         queryClient.setQueryData(
           listKeys.tree(),
-          patchChecklistNode(previousTree, checklistId, patch),
+          patchChecklistNode(current, checklistId, patch),
         )
       }
 
       return {
-        previousTree,
+        previousFields: node ? pickPatchedFields(node, patch) : undefined,
         ownerId: identityOf(useSessionStore.getState()),
       }
     },
 
     onError: (error, _variables, context) => {
-      // Solo si la sesión sigue siendo la del dueño del snapshot: tras un 401
-      // el cache privado se vació, y restaurar lo resucitaría con datos ajenos.
-      if (context?.previousTree && isSameSessionOwner(context.ownerId)) {
-        queryClient.setQueryData(listKeys.tree(), context.previousTree)
+      // Solo si la sesión sigue siendo la del dueño del patch: tras un 401 el
+      // cache privado se vació (`getQueryData` da `undefined` y no se escribe
+      // nada), y si ya hay otro usuario cargado el guard lo frena.
+      if (context?.previousFields && isSameSessionOwner(context.ownerId)) {
+        const current = queryClient.getQueryData<ChecklistNode[]>(
+          listKeys.tree(),
+        )
+        if (current) {
+          queryClient.setQueryData(
+            listKeys.tree(),
+            patchChecklistNode(current, checklistId, context.previousFields),
+          )
+        }
       }
       if (errorToast) toast.error(apiErrorMessage(error, errorToast))
     },

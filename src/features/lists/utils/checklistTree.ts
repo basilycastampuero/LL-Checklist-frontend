@@ -89,3 +89,20 @@ export function findChecklistNode(
   }
   return null
 }
+
+/**
+ * Los valores actuales de `node` para las claves que `patch` va a escribir:
+ * el "antes" de `patchChecklistNode`, para que el rollback (tarea 4.17)
+ * deshaga solo ese patch sobre el árbol actual.
+ */
+export function pickPatchedFields(
+  node: ChecklistNode,
+  patch: CosmeticChecklistPatch,
+): CosmeticChecklistPatch {
+  const previous: CosmeticChecklistPatch = {}
+  if ('name' in patch) previous.name = node.name
+  if ('description' in patch) previous.description = node.description
+  if ('isPublished' in patch) previous.isPublished = node.isPublished
+  if ('sortingMode' in patch) previous.sortingMode = node.sortingMode
+  return previous
+}

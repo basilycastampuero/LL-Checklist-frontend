@@ -421,6 +421,93 @@ describe('useUpdateEntryProgress', () => {
     )
   })
 
+  // Tarea 4.17 / hallazgo #5. Dos links DISTINTOS tienen scopes distintos
+  // (`entry-<linkId>`), así que corren en paralelo y el rollback de uno no
+  // puede llevarse por delante el cambio ya aceptado del otro.
+  describe('rollback entre links distintos de la misma carpeta', () => {
+    const otherEntry = (): VersionEntry => ({
+      ...looseEntry(),
+      linkId: 5010,
+      displayName: 'Otro',
+      order: 1,
+    })
+    // Handler autocontenido: el link 5010 no existe en el seed del mock, así
+    // que el hermano "que sale bien" se responde acá en vez de caer al base.
+    const failLink = (linkId: string) =>
+      http.patch('/api/v1/me/links/:id', async ({ params }) => {
+        if (params.id !== linkId) {
+          return HttpResponse.json({
+            entry: { ...otherEntry(), linkId: Number(params.id) },
+          })
+        }
+        await delay(300)
+        return HttpResponse.json(
+          { error: { code: 'INTERNAL', message: 'boom' } },
+          { status: 500 },
+        )
+      })
+
+    it('meta: el rollback de un link no borra la nota ya aceptada de otro', async () => {
+      server.use(failLink('5000'))
+      const a = looseEntry()
+      const b = otherEntry()
+      const { client } = setup(a, [a, b])
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      )
+      const hook = renderHook(
+        () => ({
+          a: useUpdateEntryMeta(CHECKLIST_ID, a.linkId),
+          b: useUpdateEntryMeta(CHECKLIST_ID, b.linkId),
+        }),
+        { wrapper },
+      )
+
+      act(() => hook.result.current.a.mutate({ notes: 'A falla' }))
+      act(() => hook.result.current.b.mutate({ notes: 'B sale bien' }))
+
+      await waitFor(() => expect(hook.result.current.a.isError).toBe(true))
+      await waitFor(() => expect(hook.result.current.b.isSuccess).toBe(true))
+
+      const cached = entriesInCache(client)
+      expect(cached.find((e) => e.linkId === 5000)?.notes).toBeNull()
+      expect(cached.find((e) => e.linkId === 5010)?.notes).toBe('B sale bien')
+    })
+
+    it('progreso: el rollback de un link no borra la nota ya aceptada de otro', async () => {
+      server.use(failLink('5000'))
+      const a = looseEntry()
+      const b = otherEntry()
+      const { client } = setup(a, [a, b])
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      )
+      const hook = renderHook(
+        () => ({
+          a: useUpdateEntryProgress(CHECKLIST_ID, a),
+          b: useUpdateEntryMeta(CHECKLIST_ID, b.linkId),
+        }),
+        { wrapper },
+      )
+
+      act(() => hook.result.current.a.setProgress(13))
+      act(() => hook.result.current.b.mutate({ notes: 'B sale bien' }))
+
+      // El commit de A sale a los 400 ms de debounce y falla 300 ms después.
+      await waitFor(() => expect(toast.error).toHaveBeenCalled(), {
+        timeout: 3000,
+      })
+      await waitFor(() => expect(hook.result.current.b.isSuccess).toBe(true))
+
+      const cached = entriesInCache(client)
+      expect(
+        (cached.find((e) => e.linkId === 5000) as VersionEntry).version
+          .watchedEpisodes,
+      ).toBe(12)
+      expect(cached.find((e) => e.linkId === 5010)?.notes).toBe('B sale bien')
+    })
+  })
+
   describe('401 en el PATCH (cambio de identidad en vuelo)', () => {
     const unauthorized = () =>
       http.patch('/api/v1/me/links/:id', () =>

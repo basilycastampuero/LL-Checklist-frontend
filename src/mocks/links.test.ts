@@ -242,6 +242,26 @@ describe('DELETE /me/links/:id', () => {
   })
 })
 
+describe('syncWithLinkId', () => {
+  it('rechaza sincronizar con un link de OTRA versión (422, como el backend)', async () => {
+    // Tarea 4.19 (hallazgo #6 del code-review del 2026-10-07). El link 5000 es
+    // de la versión 1005: sincronizar la 1002 con él enlazaría dos versiones
+    // distintas, y cada PATCH de episodios se propagaría entre ellas.
+    const error = await createLink({
+      checklistId: 4,
+      groupUnderFranchise: false,
+      syncWithLinkId: 5000,
+      ...versionFixture(1002),
+    }).catch((e: unknown) => e)
+    expect((error as ApiError).code).toBe('VALIDATION')
+    expect((error as ApiError).field).toBe('syncWithLinkId')
+
+    // Y el rechazo no dejó al link fuente marcado como sincronizado.
+    const source = (await listsService.getEntries(1)).find((e) => e.linkId === 5000)
+    expect(source?.version?.isSynced).toBe(false)
+  })
+})
+
 describe('rutas públicas', () => {
   /** Todos los `notes` de un árbol de entries, hijos de franchise incluidos. */
   function allNotes(items: ListEntry[]): (string | null)[] {

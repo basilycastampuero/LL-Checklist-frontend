@@ -51,6 +51,21 @@ parámetro. Lo emiten `POST /me/checklists` (validaciones de `name`/`parentId`/
 `order`/`sortingMode`, y el 422 de ciclo) y `POST /auth/register` (ver más
 abajo, cerrado con el fix de la tarea B5).
 
+**Regla general de escritura (tarea 4.18, ADR-030).** En todo `POST`/`PATCH`/
+`PUT` con body JSON, un body que **no es un objeto** (`[]`, `"x"`, `123`) o una
+clave **presente con tipo incorrecto** (`{"login": 123}`, `{"isPublished":
+"false"}`, `{"checklistId": true}`) responde `422 VALIDATION` con el envelope y,
+cuando el error es de una clave, con `field` (p. ej. `"field": "login"`). `null`
+o ausente no es error de tipo: cada ruta decide qué significa. `true`/`false`
+no valen como entero. Aplicado en login, register, `POST`/`PATCH
+/me/checklists`, `POST`/`PATCH /me/links`.
+
+**Nombres del catálogo (tarea 4.16).** Todo `name` / `mainName` del catálogo
+(`FranchiseSummary`, `FranchiseDetail`, `ContentDetail`, `content.franchise`,
+`SearchHit`) es **siempre un `string`**, nunca `false` ni `null`. Si el
+registro no tiene nombre principal, el backend usa el alternativo más antiguo
+(menor id); si no tiene ninguno, emite `""`.
+
 ---
 
 ## Auth
@@ -334,6 +349,11 @@ interface CreateLinkRequest {
 }
 ```
 → `201 { entry: ListEntry }`.
+`syncWithLinkId` tiene que ser un link **del usuario** y de la **misma versión**
+que `versionId`; si es de otra versión → `422 VALIDATION` con `field:
+"syncWithLinkId"` y no se crea nada (tarea 4.19; un link ajeno o inexistente
+sigue siendo `404`). Las copias sincronizadas comparten progreso, así que
+enlazar versiones distintas lo propagaría de un content a otro.
 `409 ALREADY_LINKED` si la versión ya está vinculada. El payload lleva **en qué
 lista** está cada aparición: un `ListEntry` solo no lo dice, y sin ese dato la
 elección del usuario ("agregar de todas formas" reintentando con `force: true`,

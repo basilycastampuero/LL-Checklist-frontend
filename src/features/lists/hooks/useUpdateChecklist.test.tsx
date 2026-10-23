@@ -196,6 +196,41 @@ describe('useUpdateChecklist', () => {
     expect(bodies).toEqual(['Primero', 'Segundo'])
   })
 
+  // Tarea 4.17 / hallazgo #5 del code-review del 2026-10-07.
+  it('el rollback de un nodo que falla NO borra el cambio ya aceptado de otro nodo', async () => {
+    // El nodo 1 falla tarde (200 ms); el 4 sale bien enseguida. El scope es por
+    // nodo, así que corren en paralelo: cuando el 1 falla, el 4 ya liquidó.
+    server.use(
+      http.patch('/api/v1/me/checklists/:id', async ({ params }) => {
+        if (params.id !== '1') return undefined
+        await delay(200)
+        return HttpResponse.json(
+          { error: { code: 'INTERNAL', message: 'boom' } },
+          { status: 500 },
+        )
+      }),
+    )
+    const client = new QueryClient()
+    client.setQueryData(listKeys.tree(), fakeTree())
+
+    const { result } = renderHook(
+      () => ({ a: useUpdateChecklist(1), b: useUpdateChecklist(4) }),
+      { wrapper: wrapper(client) },
+    )
+
+    result.current.a.mutate({ name: 'A fails' })
+    result.current.b.mutate({ name: 'B succeeds' })
+
+    await waitFor(() => expect(result.current.a.isError).toBe(true))
+    await waitFor(() => expect(result.current.b.isSuccess).toBe(true))
+
+    const tree = client.getQueryData<ChecklistNode[]>(listKeys.tree())
+    // A volvió a su valor previo...
+    expect(findNode(tree, 1)?.name).toBe('Watching')
+    // ...y el cambio de B, que el servidor aceptó, sigue en pantalla.
+    expect(findNode(tree, 4)?.name).toBe('B succeeds')
+  })
+
   it('un 401 en el PATCH vacía el cache y el rollback NO lo resucita con datos del usuario anterior', async () => {
     useSessionStore.setState({
       user: { id: 1, odooUserId: 11, name: 'Alex', email: 'a@x.dev', avatarUrl: null },

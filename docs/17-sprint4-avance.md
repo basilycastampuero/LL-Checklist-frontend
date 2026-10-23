@@ -1414,10 +1414,18 @@ corregidos en la rama `sprint4/4.8-readme`. Tarea 4.8 sigue en curso.
 
 ### Verificación
 
-- **Pendiente: la imagen no se construyó.** Docker Desktop no estaba corriendo.
-  Solo se probó la lógica de shell del `RUN` (sin arg, variable indefinida; con
-  `mock`, exportada). Ni el 503 de nginx ni el build con `--build-arg` están
-  verificados de punta a punta.
+- **Imagen construida y probada en los dos modos (2026-10-07).** Antes solo se
+  había probado la lógica de shell del `RUN`; ahora hay verificación de punta a
+  punta:
+  - Sin `--build-arg`: el módulo `env` compilado queda `apiMode:"real"`;
+    `GET /api/v1/franchises` y `/web/image/x` responden **503** con
+    `Content-Type: application/json` y el envelope
+    `{"error":{"code":"INTERNAL",...}}`; `/my-lists` responde 200 (fallback del
+    SPA).
+  - Con `--build-arg VITE_API_MODE=mock`: `apiMode:"mock"`; `/` y
+    `/mockServiceWorker.js` responden 200.
+  - Sigue sin verificarse el modo real contra un reverse proxy a Odoo (4.7b,
+    bloqueada).
 
 ## Actualización (2026-10-07) — Privacidad: hallazgos del code-review (4.14, 4.15)
 
@@ -1429,7 +1437,8 @@ Suite tras los dos cambios: **362 tests en 64 archivos** (eran 354 en 63: +8
 tests, +1 archivo), corrida real con `npm run test`. La primera corrida de la
 sesión mostró además `Errors 1 error` (una excepción no capturada atribuida a
 `useUpdateChecklist.test.tsx`, dentro del interceptor de XHR de MSW) con los 362
-verdes; no se reprodujo en tres corridas posteriores. **Sin diagnosticar.**
+verdes; no se reprodujo en tres corridas posteriores ni en otras seis el
+mismo día (nueve en total). **Sin diagnosticar.**
 
 ### 4.14 — MEDIA/ALTA en máquina compartida. El cache privado sobrevivía al cambio de identidad
 
@@ -1464,7 +1473,15 @@ verdes; no se reprodujo en tres corridas posteriores. **Sin diagnosticar.**
   (progreso, 449; meta, 466). **Rojos vistos:** A y B contra un stub vacío; con
   el guard quitado, los 3 D en rojo; con la suscripción quitada, A, B y los 3 D
   en rojo.
-- **Pendiente:** **sin verificación visual en el navegador.** Matiz aceptado: en
+- **Verificación visual (2026-10-07), Chromium vía CDP contra el dev server en
+  modo mock:** alex inicia sesión y ve su árbol "Watching | Completed |
+  Favorites"; navegación SPA a `/catalog?mockError=UNAUTHORIZED` → la sesión se
+  cae (el header muestra el link a login); sam inicia sesión en la misma
+  pestaña, sin recargar, y `/my-lists` muestra su árbol vacío a los 0, 100, 300,
+  1000 y 3000 ms. **Contraprueba:** con `usePrivateCacheReset()` comentado en
+  `RootLayout`, sam ve el árbol de alex desde los 100 ms. No hubo revisión de
+  dark mode ni mobile (el cambio no toca UI).
+- **Matiz aceptado:** en
   `useUpdateEntryProgress` el snapshot se toma en `setProgress` y el `ownerId` en
   `onMutate`, una ventana de milisegundos. `useLogout` conserva su
   `removeQueries`, redundante e idempotente.
@@ -1498,22 +1515,304 @@ verdes; no se reprodujo en tres corridas posteriores. **Sin diagnosticar.**
   *la ruta pública no divulga las notas del dueño* (incluye un hijo de franchise;
   rojo antes, verde después, rojo de nuevo en la contraprueba sin redacción) y
   *el dueño sigue viendo sus notas por /me*.
-- **Pendiente (verificación del backend):** `py_compile` ok y la función de
-  redacción probada aislada (pone `null` en hijos, no muta el original, deja
-  `rating`). **NO verificado con curl contra Odoo: Odoo/Docker no estaban
-  levantados.** Cambio local en `ll-odoo`, rama `anitrack/rest-catalog-api`, sin
-  commit ni push (los commits propios siguen siendo nueve). Comandos
-  pendientes: login con `portaltest@anitrack.dev` / `devlocal`; publicar una
-  checklist; `PATCH /me/links/<id>` con `{"notes":"NOTA-PRIVADA-123"}` en un
-  entry top-level y en un hijo; `GET` público **sin cookie**, con el header
-  `X-Requested-With: anitrack`, y buscar la cadena → **0 coincidencias**; el
-  `GET /me/...` con cookie → **2**.
+- **Verificación del backend (2026-10-07, curl contra el Odoo local):** usuario
+  `portaltest@anitrack.dev` (UID de perfil 2); checklist publicada 176
+  "Verif 4.15" con un franchise-link 108 que agrupa el link 109 y un link suelto
+  110; `NOTA-PRIVADA-123` en 109 y 110. Dueño con cookie: **2** coincidencias.
+  Público sin cookie: **0**, con `notes: null` en 108, 109 (hijo) y 110.
+  **Contraprueba:** con la versión anterior de `api_public.py` (`HEAD~1`) y Odoo
+  reiniciado, el público devolvió **2**; con el arreglo, **0**. Antes solo
+  había `py_compile` y la redacción probada aislada. El cambio quedó en el
+  commit local `266fae0` de `anitrack/rest-catalog-api`, **sin push** (con él,
+  los commits propios de `ll-odoo` pasan de nueve a diez; la cifra del
+  `CLAUDE.md` del workspace sigue diciendo nueve).
 - **Supuesto sin confirmar:** `rating`, `startedAt` y `finishedAt` (`[EXT]`,
   solo existen en el mock) siguen públicos. Es una decisión del arquitecto que
   el dueño no ha confirmado (ADR-028).
+
+### Estado de las ramas (2026-10-07)
+
+`sprint4/4.8-readme` y `fix/privacidad-cache-y-notas` están pusheadas; la de
+privacidad integra la 4.8 por merge, para que los PR mergeen limpio en el orden
+4.8 → privacidad → hallazgos. Todavía no hay PR abiertos.
 
 ### Lo que dejan en común
 
 Las dos son la misma lección del doc 18 vista desde otro lado: **un test que
 solo ejercita el camino que ya funcionaba no protege nada**, y MSW no delata
 nada que el servidor no emita ni que el cliente haga por su cuenta.
+
+## Actualización (2026-10-07) — Hallazgos restantes del code-review (4.16–4.21)
+
+El `/code-review` del 2026-10-07 dejó seis hallazgos más (además de los de 4.8,
+4.14 y 4.15). Se registran como tareas 4.16 a 4.21 del plan (doc 07) y están
+**cerradas el 2026-10-07** en la rama `fix/hallazgos-code-review` (encadenada:
+contiene `sprint4/4.8-readme` y `fix/privacidad-cache-y-notas`), sin commit ni
+PR todavía. Cada ficha termina con su **Cierre**; el texto de hallazgo se
+conserva tal como se escribió antes de corregir. Las ubicaciones se
+verificaron leyendo el código el mismo día. Fichas en el formato del doc 18; las
+líneas de `ll-odoo` son de la rama `anitrack/rest-catalog-api`. Los números de
+hallazgo (#3 a #10) son los del propio code-review, no los del doc 18.
+
+### 4.16 — ALTA. Un nombre vacío en Odoo tumba el catálogo entero (hallazgo #4)
+
+- **Ubicación:** `ll-odoo/odoo-modules/ll_checklist/models/database/franchise.py:62-72`
+  y `content.py:108-119` (`*_main_name_id` es un `Many2one` sin `required`;
+  `franchise_name` / `content_name` son `related` a `db_name`);
+  `ll_webpage/controllers/api_catalog.py:184` (`"name": franchise.franchise_name`
+  en el resumen), `:200` (detalle), `:127` (`_serialize_content`), `:467` y `:479`
+  (`mainName` de la búsqueda). Frontend: `src/features/catalog/services/schemas.ts`,
+  `name: z.string()` en `contentDetailSchema` (línea 80) y
+  `franchiseSummarySchema` (línea 95), y `mainName: z.string()` en
+  `searchHitSchema` (línea 131).
+- **Escenario:** una franquicia publicada sin nombre principal serializa
+  `"name": false` (Odoo devuelve `False` para un `Char` vacío). `z.string()`
+  rechaza toda la página: el catálogo, el home y la búsqueda caen en
+  `ErrorState` por **un** registro, no solo la tarjeta afectada. Misma clase que
+  el #21 del doc 18 (el `colorIndex` fuera de rango).
+- **Falso verde:** MSW solo produce el camino válido (la lección del doc 18):
+  no se encontró en `src/mocks/seed/` ningún registro con nombre vacío, y el
+  modelo de Odoo sí permite el nulo.
+- **Severidad:** Alta (un dato de catálogo mal cargado deja toda la app sin
+  catálogo). Que ocurra depende de que el dato exista: no se verificó si el Odoo
+  local tiene hoy una franquicia así (**pendiente de verificar**).
+- **Cierre (2026-10-07).** Backend, `ll-odoo` (rama `anitrack/rest-catalog-api`,
+  sin commit): `_display_name(main, alts)` en `api_common.py:182` (principal →
+  alternativo de menor id → `""`); `_franchise_name` / `_content_name` en
+  `api_catalog.py:124` / `:131`, usados en `ContentDetail.name` (`:140`),
+  `FranchiseSummary.name` (`:264`), `FranchiseDetail.name` (`:280`),
+  `content.franchise.name` (`:518`) y el `mainName` de la búsqueda (`:562`
+  franquicia, `:574` content). `api_lists.py:906`: `POST /me/links` con
+  `groupUnderFranchise` daba 400 HTML (`mandatory field not set:
+  checklist_name`) si la franquicia no tenía nombre principal; ahora usa el
+  fallback y, sin ningún nombre, rotula el grupo con el nombre elegido del
+  content. `api_auth.py:51`: `name = res_user.name or ""`. Se eligió `""` y no
+  `null` para no cambiar el contrato ni los schemas Zod. Barrido: solo
+  `franchise_name` y `content_name` pueden ser `False` (related a un Many2one no
+  required); el resto de los nombres (genre, platform, company, country,
+  content type, database, version, image, checklist, link) y `res.lang.code` son
+  required o ya tenían `or`.
+  **Antes/después (curl contra el Odoo local, datos de prueba borrados):** la
+  franquicia de prueba 93 (sin principal) y la 94 (sin nombres) daban
+  `"name": false` en `/franchises`, `/franchises/:id` y `/contents/:id`, y
+  `"mainName": false` en `/search`; después, `"ZZTEST416 Main"` y `""`, con cero
+  `": false`; `POST /me/links` agrupado da 201 en ambos casos.
+  **Pendiente:** el frontend muestra un título vacío para una franquicia sin
+  ningún nombre (no rompe; cosmético, falta decidir si se quiere un texto de
+  reemplazo en la UI). El backend no tiene test automatizado: la verificación
+  fue con curl.
+
+### 4.17 — ALTA. El rollback de un nodo pisa el cambio optimista de otro (hallazgo #5)
+
+- **Ubicación:** `src/features/lists/hooks/useUpdateChecklist.ts:89` (`scope: {
+  id: 'checklist-<id>' }`) frente a `:112-116` (`onError` restaura
+  `context.previousTree`, el árbol **entero** de `listKeys.tree()`);
+  `useUpdateEntryMeta.ts:65` y `useUpdateEntryProgress.ts:92` (`scope: { id:
+  'entry-<linkId>' }`) frente a `:92-96` y `:107-111`, que restauran el array
+  entero de `entries(checklistId)` con `setQueryData(queryKey, context.snapshot)`.
+- **Escenario:** dos mutaciones sobre nodos (o entries) **distintos** tienen
+  scopes distintos, así que corren en paralelo. Ambas toman su snapshot antes de
+  que la otra termine; si la primera falla, su `onError` restaura un array
+  anterior a las dos y borra el cambio optimista de la segunda hasta el refetch
+  de `onSettled`. Es exactamente la regla de `CLAUDE.md`: dos hooks que
+  escriben la misma `queryKey` y restauran el array entero tienen que compartir
+  el id de scope (F3/F4); aquí el scope es por nodo pero lo que se restaura es el
+  conjunto.
+- **Falso verde:** `useUpdateChecklist.test.tsx:200` ("el rollback de un nodo
+  que falla NO borra el cambio ya aceptado de otro nodo") cubre el caso en que
+  el otro nodo ya liquidó; el escenario de este hallazgo es el del otro nodo
+  **todavía en vuelo**. No se revisó si los tests de `useUpdateEntryMeta` /
+  `useUpdateEntryProgress` lo cubren (**pendiente de verificar**).
+- **Severidad:** Alta (el usuario ve revertido un cambio que sí se guardó, o al
+  revés, hasta el refetch). El efecto se auto-corrige en `onSettled`, lo que
+  puede moverlo a Media según el criterio del dueño.
+- **Cierre (2026-10-07).** **Rollback quirúrgico, no scope compartido
+  (ADR-029).** `useUpdateChecklist.ts` guarda en `onMutate` los valores previos
+  de **solo los campos que patchea** (`pickPatchedFields`,
+  `utils/checklistTree.ts:98`) y su `onError` (`:124`) los reaplica con
+  `patchChecklistNode` sobre el árbol **actual**. `useUpdateEntryMeta.ts`
+  igual (`findEntry`, `pickPatchedFields`, `patchEntryFields` de
+  `utils/entryTree.ts:151/168/116`; `onMutate` `:89`, `onError` `:112`).
+  `useUpdateEntryProgress.ts`: `Burst.snapshot` (el array) pasa a
+  `Burst.baseline` (el `watchedEpisodes` previo a la ráfaga, `:25`/`:168`) y el
+  rollback (`:116`) usa `patchEntryProgress` sobre el cache actual, que ajusta
+  también el agregado del padre. Debounce, flush al desmontar, cadena de un
+  commit en vuelo y scope `entry-${linkId}` (`:96`) quedan intactos; el guard
+  `isSameSessionOwner` (ADR-027) se mantiene. Ningún otro hook hace
+  `setQueryData` optimista sobre esas keys (create/delete solo invalidan).
+  **Tests nuevos, rojos antes del fix por la causa correcta:**
+  `useUpdateChecklist.test.tsx:200` (el nodo 1 falla tarde, el 4 sale bien) y
+  dos en `useUpdateEntryProgress.test.tsx`, bajo `describe('rollback entre
+  links distintos de la misma carpeta')` (meta contra meta; progreso contra
+  meta). **Limitaciones conocidas:** el rollback de progreso vuelve al valor
+  previo a **toda** la ráfaga aunque el primer commit se hubiera aceptado
+  (`onSettled` lo corrige con el refetch; no es regresión); con el cache vacío
+  en el primer click no hay rollback visual (igual que antes).
+
+### 4.18 — MEDIA. Un body JSON de tipo inesperado da 500 sin envelope (hallazgo #7)
+
+- **Ubicación:** `ll-odoo/odoo-modules/ll_webpage/controllers/api_common.py:122-130`
+  (`_parse_json_body` devuelve cualquier JSON válido, no solo objetos);
+  `api_auth.py:98-102` (`body.get("login") or ""` y `.strip()`) y `:146-151`
+  (`email`, `name`); `api_lists.py:631-635` y `:682-694` (`name`) y
+  `api_lists.py:845-850` (`POST /me/links`, `body.get("checklistId")`, etc.).
+- **Escenario:** body `[]` (o un número, o un string) → `body.get` revienta con
+  `AttributeError`; `{"login":123}` → `int` no tiene `.strip()`. Sale un 500 HTML
+  de Odoo, sin envelope del contrato, en vez de `422 VALIDATION`. Misma clase que
+  el #22 del doc 18 (500 sin envelope), ahora del lado de la entrada. No se
+  ejecutó el request contra Odoo para confirmar el 500 (**pendiente de
+  verificar**; la conclusión sale de leer el código).
+- **Falso verde:** los tests y el mock solo envían bodies bien formados; el
+  frontend nunca manda un tipo equivocado, así que solo un cliente hostil lo
+  provoca.
+- **Severidad:** Media (no filtra datos ni corrompe; es un 500 evitable y mal
+  formado, alcanzable sin autenticar en `login` y `register`).
+- **Cierre (2026-10-07).** `api_common.py:122` `_parse_json_body` devuelve
+  `None` si el JSON no es un objeto (todas las rutas ya traducían `None` a
+  422); `INVALID_BODY_MESSAGE` (`:142`); `_body_type_error(body, spec)` (`:147`)
+  valida el tipo de las claves **presentes** (`null` o ausente pasa), responde
+  `422 VALIDATION` con `field` y excluye `bool` de `int`. Aplicado en login
+  (`api_auth.py:105-106`), register (`:156-157`), `POST` y `PATCH
+  /me/checklists` (`api_lists.py:636-637`, `:692-693`) y `POST /me/links`
+  (`:861-865`); `PATCH /me/links` (`:1046`) solo necesitaba el chequeo de
+  objeto. Política transversal: **ADR-030**. Los booleanos (`isPublished`,
+  `groupUnderFranchise`, `force`) también se validan; el frontend los tipa como
+  `boolean` estricto, así que no se ve afectado.
+  **Antes/después (curl, 25 bodies hostiles):** `[]`, `"hola"`, `123` → 500
+  HTML; `{"login":123}`, `{"name":42}`, `{"parentId":true}`,
+  `{"checklistId":true}` → 500; `{"description":{"x":1}}` → 201 guardando
+  `"{'x': 1}"`; `{"isPublished":"false"}` → 201 con `isPublished` true;
+  `PATCH [1,2]` → 200; `groupUnderFranchise:"no"` → 400 HTML. Después, los 25 →
+  `422 VALIDATION` con envelope (y `field` en los de tipo). Bodies válidos sin
+  cambio: login 200/401, register 201/422 (email duplicado), POST/PATCH
+  checklists 201/200 (también con `description: null`), PATCH link 200, 409
+  `ALREADY_LINKED`, `force` 201. Sin test automatizado en el backend.
+
+### 4.19 — MEDIA. `syncWithLinkId` no comprueba la versión (hallazgo #6)
+
+- **Ubicación:** `ll-odoo/odoo-modules/ll_webpage/controllers/api_lists.py:892-900`
+  (valida tipo y dueño del `source` vía `_owned_link_or_none(version_only=True)`,
+  pero no compara `source.link_version_id` con `version_id`) y `:957-974` (el
+  bloque `if source is not None` copia `link_name`, `lv_abbreviation`,
+  `lv_episodes` y enlaza `lv_link_left_ids`).
+- **Escenario:** `POST /me/links` con un `versionId` y un `syncWithLinkId` de un
+  link de **otra** versión: se crea el link, se le copian episodios y
+  abreviatura de la fuente y ambas versiones quedan enlazadas como
+  sincronizadas. El progreso de una propagaría a la otra.
+- **Falso verde:** el wizard solo habilita "Create synced copy" tras un 409 y
+  eligiendo con cuál sincronizar (`WizardConflictStep.tsx`, ver 4.8), así que la
+  UI no arma un par de versiones distintas; el contrato no lo impide. No se
+  buscó si algún test del backend envía un par incoherente (**pendiente de
+  verificar**).
+- **Severidad:** Media (hoy inalcanzable desde la UI; alcanzable por API, solo
+  sobre datos del propio usuario por la `ir.rule`).
+- **Cierre (2026-10-07).** `api_lists.py:939`: si `source.link_version_id` no es
+  la `versionId` pedida → `422 VALIDATION` con `field: syncWithLinkId`, antes
+  de crear nada. 422 y no 404: el link existe y es del usuario; lo incoherente
+  es el par. Mock (paridad): `src/mocks/handlers.ts:568` rechaza el mismo caso
+  con 422 antes de marcar la fuente como sincronizada; test en
+  `src/mocks/links.test.ts:245` (`describe('syncWithLinkId')`), rojo antes y
+  verde después.
+  **Antes/después (curl; el chequeo se desactivó temporalmente para reproducir
+  el antes):** `versionId` 180 + `syncWithLinkId` 112 (versión 179) → 201, el
+  link nuevo heredó `watchedEpisodes` 2 con `totalEpisodes` 1 y un PATCH sobre
+  él cambió también el 112, de **otro content**. Después: versión distinta →
+  422; misma versión → 201 con `isSynced: true`; link ajeno o inexistente →
+  404.
+
+### 4.20 — MEDIA. La app autenticada es embebible en un iframe (hallazgo #9)
+
+- **Ubicación:** `docker/nginx.conf:24-33` (los únicos `add_header` son
+  `Cache-Control`; ninguno de seguridad) y `vercel.json:16-24` (el único bloque
+  `headers` es el de `/mockServiceWorker.js`).
+- **Escenario:** una página de otro origen embebe la app en un `<iframe>`; con la
+  cookie de sesión del usuario, lo engaña para pulsar Delete o Publish
+  (clickjacking). ADR-016 (`X-Requested-With`) protege contra CSRF por
+  petición, no contra este vector de UI. Tampoco hay `X-Content-Type-Options`.
+  Nota para el arreglo: en nginx, un `add_header` dentro de un `location`
+  anula los del nivel superior, y los `location` de este archivo ya declaran
+  `Cache-Control`.
+- **Falso verde:** no hay ningún test ni verificación que mire cabeceras de
+  respuesta; la app "funciona" idéntica con o sin ellas. El comportamiento del
+  proxy de Railway delante de Odoo (4.7b) queda fuera de este alcance.
+- **Severidad:** Media (requiere que la víctima esté autenticada y visite un
+  sitio hostil).
+- **Cierre (2026-10-07).** Nuevo `docker/security-headers.conf`
+  (`X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin`, todas con `always`), incluido a nivel
+  `server` en `docker/nginx.conf:12` y **repetido** en las `location` con
+  `add_header` propio (`mockServiceWorker.js` y assets, `:31` y `:37`), porque
+  un `add_header` en `location` anula los heredados. El `Dockerfile:35` lo
+  copia a `/etc/nginx/snippets/`. `vercel.json`: regla `source: "/(.*)"` con
+  las cuatro. `Referrer-Policy` porque las rutas llevan ids de listas y
+  `?next=`. CSP solo con `frame-ancestors`, a propósito: no se tocó la política
+  de scripts.
+  **Verificación (imagen mock en `:18082`, `curl -I`):** las cuatro cabeceras
+  en `/` (200), `/my-lists` (200), un asset `.js` (200, más `Cache-Control:
+  immutable`), `/mockServiceWorker.js` (200, más `no-cache`),
+  `/api/v1/franchises` (503) y `/nope.js` (404). **`vercel.json` no es
+  verificable en local: pendiente `curl -I` sobre el deploy.**
+
+### 4.21 — BAJA. `sort=releaseDate` es lineal y con N+1 (hallazgo #8)
+
+- **Ubicación:** `ll-odoo/odoo-modules/ll_webpage/controllers/api_catalog.py:380-392`
+  (`Franchise.search(domain)` sin límite y `sorted` en Python con
+  `_franchise_years(f)` dos veces por franquicia, líneas 388-389; el comentario
+  del código ya reconoce el costo) y `:175-177` / `:159-169` (`_franchise_cover`
+  llama a `_franchise_images`, que hace un `Image.search`, por cada resumen
+  sin `franchise_image_id`).
+- **Escenario:** cada página de `GET /franchises?sort=releaseDate` recorre todo
+  el catálogo publicado, y el serializado de la página añade una búsqueda de
+  imágenes por franquicia sin portada propia: la latencia crece linealmente con
+  el catálogo, no con el tamaño de página. Con el volumen actual no hay medición
+  que muestre dolor (**sin medir**).
+- **Falso verde:** no hay medición de costo en ningún test ni bitácora; el
+  catálogo local es chico. Nota: el `Image.search` solo corre para franquicias
+  sin `franchise_image_id`.
+- **Severidad:** Baja (rendimiento; el propio código lo declara aceptable con el
+  volumen actual).
+- **Cierre (2026-10-07).** `api_catalog.py:165` `_franchise_year_ranges` (un
+  `search_read` de contents más un `read_group` de versions con
+  `min`/`max(version_date)`) reemplaza a `_franchise_years`, que se llamaba dos
+  veces por franquicia; `_franchise_covers` (`:232`) busca las portadas de la
+  página en **un** `Image.search`; la clave de orden se calcula una vez
+  (`:460`/`:475`); mismo `sorted` estable. Sin cambio de esquema ni `-u`.
+  **Verificación:** orden idéntico con 300 franquicias temporales (900
+  contents, 1800 versions, empates de año): `releaseDate` y `-releaseDate`,
+  `pageSize` 7, todas las páginas, sin filtro / `contentType=V` / `genreIds`;
+  diff vacío en 172 líneas. **Medición** con 310 franquicias: página 3 de 24
+  ~1,33 s → ~0,076 s; `-releaseDate` con `pageSize=100` ~1,45 s → ~0,117 s.
+  **Pendiente:** sigue siendo O(N) por página (trae todos los ids filtrados y
+  ordena en Python, ahora con tres queries fijas); si el catálogo crece, el
+  siguiente paso es un año materializado `store=True` y ordenar en SQL.
+  `/search` y `/contents/:id` siguen con `_franchise_cover` por hit (máximo 50).
+
+### Verificación
+
+- Suite: **366 tests en 64 archivos**, `typecheck` y `lint` limpios (2026-10-07).
+  Tests nuevos de esta tanda: 3 de 4.17, 1 de 4.19 (mock). Los de 4.17 y 4.19
+  se confirmaron rojos antes del fix.
+- Backend (4.16, 4.18, 4.19, 4.21): curl contra el Odoo local, antes y después
+  de cada cambio, con datos de prueba borrados al terminar. **No hay tests
+  automatizados del backend**: la verificación es la de los cierres de arriba.
+- 4.20: imagen Docker mock en `:18082`; `vercel.json` sin verificar (pendiente
+  `curl -I` sobre el deploy).
+- Todo está **sin commit** en las dos ramas (`fix/hallazgos-code-review` en el
+  frontend y `anitrack/rest-catalog-api` en `ll-odoo`).
+
+### Observaciones preexistentes del backend (abiertas, no de este trabajo)
+
+Aparecieron al verificar 4.16 y 4.21; ninguna la introdujo ni la cambió este
+trabajo.
+
+- **Empate de orden entre franquicias sin nombre principal.** El `_order` de
+  `Franchise` es `franchise_main_name_id`, nullable: con varias franquicias sin
+  nombre principal el orden entre ellas lo decide Postgres (sin criterio
+  determinista). **Sí varía entre llamadas:** con las franquicias de prueba 93
+  y 94 bajo `yearFrom=1901` salieron 93,94 en una corrida y 94,93 en otra, y
+  eso puede duplicar o saltear una franquicia entre páginas. No viene de 4.21:
+  los dos órdenes salen del mismo `search` base.
+- **`contentId` de `ListEntry` puede ser `None`** si una versión no tiene
+  `version_content_id` (no es `required`). La API no permite crear ese caso,
+  así que solo aparecería con datos cargados a mano en Odoo.
