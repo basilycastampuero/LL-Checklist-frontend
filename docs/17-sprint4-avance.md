@@ -1816,3 +1816,98 @@ trabajo.
 - **`contentId` de `ListEntry` puede ser `None`** si una versión no tiene
   `version_content_id` (no es `required`). La API no permite crear ese caso,
   así que solo aparecería con datos cargados a mano en Odoo.
+
+## Actualización (2026-10-23) — Merge de 4.8 y 4.14–4.21, tarea 4.22 y pendientes reclasificados
+
+### Cómo entró a `main`
+
+Las tres ramas apiladas entraron por **#15 → #18 → #17**, las tres con *merge
+commit*. Lo que estaba "sin commit" en la sección de verificación de arriba ya
+está commiteado y mergeado; los commits de `ll-odoo` siguen siendo locales.
+
+| PR | Rama | Contenido | Commit del merge |
+|---|---|---|---|
+| #15 | `sprint4/4.8-readme` | 4.8 | `0c4b785` |
+| ~~#16~~ | `fix/privacidad-cache-y-notas` | cerrado sin mergear | — |
+| #18 | `fix/privacidad-cache-y-notas` | 4.14, 4.15 (reemplaza a #16) | `f1d7237` |
+| #17 | `fix/hallazgos-code-review` | 4.17, 4.19 (mock), 4.20, docs | `50f36a4` |
+
+**Lo que pasó con el #16, y la lección.** Al mergear #15 se borró a mano su
+rama base `sprint4/4.8-readme`. Se esperaba que GitHub reapuntara el #16 a
+`main`; en cambio **lo cerró** dos segundos después, y un PR cerrado cuya base
+ya no existe no se puede reabrir. El "conflicto" que mostraba era falso: el
+merge de prueba local (`git merge-tree`) contra `main` salía limpio. Como
+restaurar la rama exigía un push, se abrió el #18 desde la misma rama, con el
+mismo commit de cabeza (`c29a5a2`).
+
+Antes de mergear el #18 se reapuntó el #17 a `main` (`gh pr edit 17 --base
+main`), para que borrar `fix/privacidad-cache-y-notas` no lo cerrara también.
+**Regla para PRs apilados: reapuntar el siguiente a `main` antes de borrar la
+rama base del anterior**, sin confiar en el reapuntado automático.
+
+Otro detalle del mismo proceso: tras reapuntar, GitHub contaba 27 archivos en el
+#17 cuando eran 21; `git diff --stat origin/main...` confirmó los 4 commits y
+21 archivos. Era un conteo desactualizado de GitHub, no contenido extra.
+
+### Verificación tras el merge
+
+- CI de `main` en `50f36a4`: verde.
+- **4.20, `vercel.json` verificado en producción** con `curl -I` sobre
+  `https://ll-checklist-frontend.vercel.app`: `/`, `/catalog` y `/assets/`
+  responden con las cuatro cabeceras (`X-Frame-Options: DENY`, CSP
+  `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`). Era lo único pendiente
+  de 4.20.
+- **Los previews de Vercel no sirven para esto**: tienen *Deployment
+  Protection* y responden `302` al login de Vercel antes de llegar a la app, con
+  un `X-Frame-Options` que pone la propia página de login. El primer intento
+  se hizo contra el preview del #17 y no probaba nada.
+
+### 4.22 — BAJA. Franquicia o content sin nombre: título vacío en la UI
+
+Era el cosmético que dejó 4.16: el backend emite `""` cuando una franquicia o
+un content no tiene **ningún** nombre en Odoo. Decidido por el agente (el dueño
+delegó la decisión): **mostrar "Untitled"**, por accesibilidad más que por
+estética. Sin reemplazo, la card queda sin título y su `<Link>` sin nombre
+accesible: el lector de pantalla anuncia solo "enlace".
+
+- `displayName()` en `src/features/catalog/utils/displayName.ts`, string en
+  `t.catalog.untitled`. Se usa en `FranchiseCard` (título, `alt`, slug),
+  `FranchiseHeader` (`h1`, `alt`), `ContentSection` (enlace o `h2`, `alt`, y el
+  slug de la franquicia y del content) y el breadcrumb de `ContentDetailPage`.
+- Vive en la presentación y no en el schema Zod (ADR-025: Zod valida forma, no
+  convenciones de presentación).
+- **Las listas no lo necesitan**: al crear un link agrupado, el backend ya
+  rotula el grupo con el nombre del content si la franquicia no tiene ninguno
+  (`api_lists.py`, 4.16). La búsqueda tampoco: una franquicia sin nombres no
+  aparece en una búsqueda por nombre.
+- 5 tests en `displayName.test.tsx`. **Contraprueba**: con `displayName`
+  devolviendo el nombre tal cual, fallan 4 de los 5.
+- Revisión visual (Chromium por CDP, modo mock, con el seed vaciado
+  temporalmente): `/catalog` a 1440 claro y 360 oscuro, `/franchise/1` a 1440
+  oscuro y 360 claro. "Untitled" en la card, el `h1` y el content; cero
+  encabezados vacíos; el layout no cambia. La primera pasada encontró un slug
+  `/franchise/1-/content/…`: `ContentSection` armaba la ruta con el nombre de
+  franquicia crudo. Corregido en el mismo commit.
+- Suite: **371 tests en 65 archivos**, `typecheck` y `lint` limpios.
+
+### Pendientes reclasificados por el dueño (2026-10-23)
+
+- **Pasan a Chano** y salen de los pendientes de este frontend:
+  - El backend no tiene tests automatizados.
+  - Las dos observaciones preexistentes de arriba (empate de orden entre
+    franquicias sin nombre principal; `contentId` que puede ser `None`).
+  - **La app de Twitch**: según el dueño, Chano ya la tiene registrada en su
+    entorno local. 3.3b y B9 dejan de esperar al dueño y pasan a esperar que
+    Chano comparta la configuración (o la pruebe él).
+- **Sigue abierto, en manos del dueño**: el supuesto de ADR-028 (`rating`,
+  `startedAt` y `finishedAt` públicos). Solo existen en el mock: el modelo de
+  Chano no tiene esos campos, así que el backend real nunca los emite. En la
+  demo, la vista pública de una lista muestra la puntuación de cada entry; las
+  fechas no se muestran (el diálogo que las tiene solo existe en la vista
+  editable), **pero sí viajan en la respuesta JSON**, visibles en DevTools. Si el dueño decide que no
+  deben ser públicos, el cambio es agregarlos a `redactPublicEntry` del mock (y
+  a `_PRIVATE_ENTRY_FIELDS` del backend el día que existan).
+- **Sin cambios**: 4.7b (sin URL de Railway), verificación con lectores de
+  pantalla, escenarios hostiles de 4.1 y la decisión sobre los once commits de
+  `ll-odoo`.
